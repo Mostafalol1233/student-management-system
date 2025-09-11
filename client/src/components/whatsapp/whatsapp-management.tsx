@@ -18,7 +18,8 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  XCircle
+  XCircle,
+  Send
 } from 'lucide-react';
 
 interface WhatsAppStatus {
@@ -95,6 +96,44 @@ export function WhatsAppManagement() {
         description: "تم حذف جميع الرسائل المحفوظة",
       });
       refetchMessages();
+    }
+  });
+
+  // Send individual message mutation
+  const sendMessageMutation = useMutation({
+    mutationFn: (messageId: string) => apiRequest('POST', `/api/whatsapp/send-message/${messageId}`),
+    onSuccess: () => {
+      toast({
+        title: "إرسال الرسالة",
+        description: "تم إرسال الرسالة بنجاح",
+      });
+      refetchMessages();
+    },
+    onError: () => {
+      toast({
+        title: "خطأ في الإرسال",
+        description: "فشل في إرسال الرسالة",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Send all messages mutation
+  const sendAllMessagesMutation = useMutation({
+    mutationFn: () => apiRequest('POST', '/api/whatsapp/send-all'),
+    onSuccess: () => {
+      toast({
+        title: "إرسال جميع الرسائل",
+        description: "تم إرسال جميع الرسائل المعلقة بنجاح",
+      });
+      refetchMessages();
+    },
+    onError: () => {
+      toast({
+        title: "خطأ في الإرسال",
+        description: "فشل في إرسال بعض الرسائل",
+        variant: "destructive"
+      });
     }
   });
 
@@ -294,6 +333,18 @@ export function WhatsAppManagement() {
               الرسائل المحفوظة ({messages.length})
             </div>
             <div className="flex gap-2">
+              {status?.isConnected && pendingMessages > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => sendAllMessagesMutation.mutate()}
+                  disabled={sendAllMessagesMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                  data-testid="button-send-all"
+                >
+                  <Send className="w-4 h-4 mr-1" />
+                  إرسال الكل ({pendingMessages})
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -355,6 +406,21 @@ export function WhatsAppManagement() {
                         {new Date(message.timestamp).toLocaleString('ar-EG')}
                       </div>
                     </div>
+                    {/* Individual Send Button */}
+                    {message.status === 'pending' && status?.isConnected && (
+                      <div className="mr-4">
+                        <Button
+                          size="sm"
+                          onClick={() => sendMessageMutation.mutate(message.id)}
+                          disabled={sendMessageMutation.isPending}
+                          className="bg-blue-600 hover:bg-blue-700"
+                          data-testid={`button-send-${message.id}`}
+                        >
+                          <Send className="w-4 h-4 mr-1" />
+                          إرسال
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

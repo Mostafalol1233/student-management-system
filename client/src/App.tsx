@@ -18,6 +18,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/students" component={StudentRegistrationPage} />
       <Route path="/student-registration" component={StudentRegistrationPage} />
       <Route path="/session-management" component={SessionManagementPage} />
       <Route path="/attendance-scanning" component={AttendanceScanningPage} />

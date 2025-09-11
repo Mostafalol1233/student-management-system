@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, FileText, QrCode, Edit, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Search, FileText, QrCode, Edit, Trash2, Download, User } from "lucide-react";
+import QRGenerator, { QRGeneratorRef } from "@/components/ui/qr-generator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Student } from "@shared/schema";
 
 export default function StudentList() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStudentForQR, setSelectedStudentForQR] = useState<Student | null>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const qrRef = useRef<QRGeneratorRef>(null);
   const { toast } = useToast();
 
   const { data: students = [], isLoading } = useQuery<Student[]>({
@@ -160,19 +165,72 @@ export default function StudentList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          data-testid={`button-qr-${student.id}`}
-                          onClick={() => {
-                            toast({
-                              title: "QR Code",
-                              description: `Viewing QR code for ${student.name}`,
-                            });
-                          }}
-                        >
-                          <QrCode size={16} className="text-primary" />
-                        </Button>
+                        <Dialog open={qrModalOpen && selectedStudentForQR?.id === student.id} onOpenChange={(open) => {
+                          if (!open) {
+                            setQrModalOpen(false);
+                            setSelectedStudentForQR(null);
+                          }
+                        }}>
+                          <DialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              data-testid={`button-qr-${student.id}`}
+                              onClick={() => {
+                                setSelectedStudentForQR(student);
+                                setQrModalOpen(true);
+                              }}
+                            >
+                              <QrCode size={16} className="text-primary" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-md">
+                            <DialogHeader>
+                              <DialogTitle className="text-center">
+                                QR Code - {student.name}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="flex justify-center">
+                                {selectedStudentForQR && (
+                                  <QRGenerator 
+                                    ref={qrRef}
+                                    value={selectedStudentForQR.code} 
+                                    size={200}
+                                    studentName={selectedStudentForQR.name}
+                                    onRegenerate={() => {
+                                      toast({
+                                        title: "تم إعادة إنتاج رمز QR",
+                                        description: `تم إعادة إنتاج رمز QR للطالب ${selectedStudentForQR.name}`,
+                                      });
+                                    }}
+                                  />
+                                )}
+                              </div>
+                              <div className="text-center space-y-2">
+                                <div className="text-xl font-bold text-primary">
+                                  {selectedStudentForQR?.code}
+                                </div>
+                                <p className="text-sm text-muted-foreground">كود الطالب الفريد</p>
+                              </div>
+                              <Button 
+                                className="w-full" 
+                                onClick={() => {
+                                  if (qrRef.current) {
+                                    qrRef.current.downloadQR();
+                                    toast({
+                                      title: "تم تحميل رمز QR",
+                                      description: `تم حفظ رمز QR للطالب ${selectedStudentForQR?.name}`,
+                                    });
+                                  }
+                                }}
+                              >
+                                <Download className="mr-2" size={16} />
+                                تحميل رمز QR
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                         <Button
                           size="sm"
                           variant="ghost"

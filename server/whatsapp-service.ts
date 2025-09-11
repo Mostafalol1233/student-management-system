@@ -216,6 +216,65 @@ class WhatsAppService {
     return Buffer.from(csvContent);
   }
 
+  async sendStoredMessage(messageId: string): Promise<boolean> {
+    const messages = this.getStoredMessages();
+    const message = messages.find(m => m.id === messageId);
+    
+    if (!message || message.status !== 'pending') {
+      return false;
+    }
+
+    if (!this.isConnected || !this.sock) {
+      return false;
+    }
+
+    try {
+      // Clean phone number (remove spaces, dashes, etc.)
+      const cleanPhone = message.to.replace(/[^\d+]/g, '');
+      const jid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+      
+      await this.sock.sendMessage(jid, { text: message.message });
+      console.log(`Message sent to ${message.to}: ${message.message}`);
+      
+      this.updateMessageStatus(messageId, 'sent');
+      return true;
+    } catch (error) {
+      console.error('Error sending stored message:', error);
+      this.updateMessageStatus(messageId, 'failed');
+      return false;
+    }
+  }
+
+  async sendAllPendingMessages(): Promise<{sent: number, failed: number, total: number}> {
+    const messages = this.getStoredMessages();
+    const pendingMessages = messages.filter(m => m.status === 'pending');
+    
+    let sent = 0;
+    let failed = 0;
+
+    if (!this.isConnected || !this.sock) {
+      return { sent: 0, failed: pendingMessages.length, total: pendingMessages.length };
+    }
+
+    for (const message of pendingMessages) {
+      try {
+        const success = await this.sendStoredMessage(message.id);
+        if (success) {
+          sent++;
+        } else {
+          failed++;
+        }
+        // Add a small delay between messages to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        failed++;
+        console.error('Error sending message in batch:', error);
+      }
+    }
+
+    return { sent, failed, total: pendingMessages.length };
+  }
+
   clearMessages() {
     fs.writeFileSync(this.messagesFile, JSON.stringify([], null, 2));
   }

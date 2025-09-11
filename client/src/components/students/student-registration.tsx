@@ -13,13 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StudentList from "./student-list";
-import QRGenerator from "@/components/ui/qr-generator";
+import QRGenerator, { QRGeneratorRef } from "@/components/ui/qr-generator";
 import { Plus, Download, Upload, FileText, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function StudentRegistration() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [bulkImportResults, setBulkImportResults] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const qrRef = useRef<QRGeneratorRef>(null);
   const { toast } = useToast();
 
   const form = useForm<InsertStudent>({
@@ -408,9 +409,17 @@ Ahmed Ali,+201234567890,+201987654321,789 Nile Street,Grade 12,C`;
             <div className="w-48 h-48 mx-auto bg-muted rounded-lg flex items-center justify-center">
               {selectedStudent ? (
                 <QRGenerator 
+                  ref={qrRef}
                   value={selectedStudent.code} 
                   size={160}
+                  studentName={selectedStudent.name}
                   data-testid="qr-code-preview"
+                  onRegenerate={() => {
+                    toast({
+                      title: "تم إعادة إنتاج رمز QR",
+                      description: `تم إعادة إنتاج رمز QR للطالب ${selectedStudent.name}`,
+                    });
+                  }}
                 />
               ) : (
                 <div className="w-40 h-40 bg-white rounded border-2 border-dashed border-border flex items-center justify-center">
@@ -422,22 +431,24 @@ Ahmed Ali,+201234567890,+201987654321,789 Nile Street,Grade 12,C`;
               <div className="text-2xl font-bold text-primary" data-testid="display-student-code">
                 {selectedStudent?.code || "---"}
               </div>
-              <p className="text-sm text-muted-foreground">Student Unique Code</p>
+              <p className="text-sm text-muted-foreground">كود الطالب الفريد</p>
               {selectedStudent && (
                 <Button 
                   className="w-full" 
                   variant="secondary"
                   data-testid="button-download-qr"
                   onClick={() => {
-                    // QR download will be handled by the QRGenerator component
-                    toast({
-                      title: "QR Code downloaded",
-                      description: `QR code for ${selectedStudent.name} has been saved`,
-                    });
+                    if (qrRef.current) {
+                      qrRef.current.downloadQR();
+                      toast({
+                        title: "تم تحميل رمز QR",
+                        description: `تم حفظ رمز QR للطالب ${selectedStudent.name}`,
+                      });
+                    }
                   }}
                 >
                   <Download className="mr-2" size={16} />
-                  Download QR Code
+                  تحميل رمز QR
                 </Button>
               )}
             </div>

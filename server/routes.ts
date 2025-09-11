@@ -415,6 +415,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/whatsapp/send-message/:messageId", async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const success = await whatsappService.sendStoredMessage(messageId);
+      
+      if (success) {
+        res.json({ message: "Message sent successfully" });
+      } else {
+        res.status(404).json({ message: "Message not found or already sent" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  app.post("/api/whatsapp/send-all", async (req, res) => {
+    try {
+      const results = await whatsappService.sendAllPendingMessages();
+      res.json({ 
+        message: "Send all operation completed",
+        results
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send all messages" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
