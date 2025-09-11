@@ -57,7 +57,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates = req.body;
       const student = await storage.updateStudent(req.params.id, updates);
       res.json(student);
-    } catch (error) {
+    } catch (error: any) {
       if (error.message === "Student not found") {
         return res.status(404).json({ message: "Student not found" });
       }
@@ -114,7 +114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates = req.body;
       const session = await storage.updateSession(req.params.id, updates);
       res.json(session);
-    } catch (error) {
+    } catch (error: any) {
       if (error.message === "Session not found") {
         return res.status(404).json({ message: "Session not found" });
       }
@@ -202,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates = req.body;
       const grade = await storage.updateGrade(req.params.id, updates);
       res.json(grade);
-    } catch (error) {
+    } catch (error: any) {
       if (error.message === "Grade not found") {
         return res.status(404).json({ message: "Grade not found" });
       }
