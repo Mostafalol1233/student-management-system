@@ -16,8 +16,13 @@ export type ActiveSection =
   | "reports"
   | "whatsapp-management";
 
-export default function Dashboard() {
-  const [activeSection, setActiveSection] = useState<ActiveSection>("student-registration");
+interface DashboardProps {
+  initialSection?: ActiveSection;
+  [key: string]: any; // Allow additional props from wouter
+}
+
+export default function Dashboard({ initialSection = "student-registration", ...props }: DashboardProps) {
+  const [activeSection, setActiveSection] = useState<ActiveSection>(initialSection);
 
   const sectionTitles = {
     "student-registration": {

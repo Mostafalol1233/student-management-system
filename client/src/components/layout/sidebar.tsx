@@ -1,4 +1,5 @@
 import { GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3, User, MessageCircle } from "lucide-react";
+import { useLocation } from "wouter";
 import type { ActiveSection } from "@/pages/dashboard";
 
 interface SidebarProps {
@@ -7,36 +8,44 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
+  const [location, setLocation] = useLocation();
+  
   const menuItems = [
     {
       id: "student-registration" as ActiveSection,
       icon: UserPlus,
-      label: "Student Registration"
+      label: "Student Registration",
+      path: "/student-registration"
     },
     {
       id: "session-management" as ActiveSection,
       icon: CalendarPlus,
-      label: "Session Management"
+      label: "Session Management",
+      path: "/session-management"
     },
     {
       id: "attendance-scanning" as ActiveSection,
       icon: QrCode,
-      label: "Attendance Scanning"
+      label: "Attendance Scanning",
+      path: "/attendance-scanning"
     },
     {
       id: "grade-entry" as ActiveSection,
       icon: Star,
-      label: "Grade Entry"
+      label: "Grade Entry",
+      path: "/grade-entry"
     },
     {
       id: "reports" as ActiveSection,
       icon: BarChart3,
-      label: "Reports"
+      label: "Reports",
+      path: "/reports"
     },
     {
       id: "whatsapp-management" as ActiveSection,
       icon: MessageCircle,
-      label: "WhatsApp Management"
+      label: "WhatsApp Management",
+      path: "/whatsapp-management"
     }
   ];
 
@@ -56,7 +65,10 @@ export default function Sidebar({ activeSection, onSectionChange }: SidebarProps
             <button
               key={item.id}
               data-testid={`nav-${item.id}`}
-              onClick={() => onSectionChange(item.id)}
+              onClick={() => {
+                setLocation(item.path);
+                onSectionChange(item.id);
+              }}
               className={`sidebar-item w-full text-left px-4 py-3 rounded-md transition-colors flex items-center ${
                 activeSection === item.id ? "active" : ""
               }`}
