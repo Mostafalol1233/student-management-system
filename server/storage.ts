@@ -180,7 +180,9 @@ export class MemStorage implements IStorage {
     const grade: Grade = {
       ...insertGrade,
       id,
+      notes: insertGrade.notes || null,
       grade: this.calculateLetterGrade(insertGrade.score, insertGrade.totalMarks),
+      sentToParent: false,
       createdAt: new Date(),
     };
     this.grades.set(id, grade);

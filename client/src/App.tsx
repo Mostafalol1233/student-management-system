@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard, { type ActiveSection } from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 import StudentProfile from "@/pages/student-profile";
+import StudentComprehensiveProfile from "@/pages/student-comprehensive-profile";
 
 // Route wrapper components
 const StudentRegistrationPage = () => <Dashboard initialSection="student-registration" />;
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/students" component={StudentRegistrationPage} />
       <Route path="/student/:id" component={StudentProfile} />
+      <Route path="/student-comprehensive/:id" component={StudentComprehensiveProfile} />
       <Route path="/student-registration" component={StudentRegistrationPage} />
       <Route path="/session-management" component={SessionManagementPage} />
       <Route path="/attendance-scanning" component={AttendanceScanningPage} />

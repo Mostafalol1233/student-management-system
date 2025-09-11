@@ -283,12 +283,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/grades/student/:studentId", async (req, res) => {
     try {
-      const grades = await storage.getGradesByStudent(req.params.studentId);
+      const { studentId } = req.params;
+      const grades = await storage.getGradesByStudent(studentId);
       res.json(grades);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch grades" });
+      res.status(500).json({ message: "Failed to fetch student grades" });
     }
   });
+
 
   app.post("/api/grades", async (req, res) => {
     try {
@@ -358,7 +360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/whatsapp/send-grade", async (req, res) => {
     try {
-      const { studentName, phoneNumber, grade, subject } = req.body;
+      const { studentName, phoneNumber, grade, subject, notes } = req.body;
       
       if (!studentName || !phoneNumber || !grade) {
         return res.status(400).json({ message: "Missing required fields" });
@@ -368,7 +370,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         studentName, 
         phoneNumber, 
         grade, 
-        subject || 'الامتحان'
+        subject || 'الامتحان',
+        notes
       );
       
       res.json({ messageId, message: "Grade message queued successfully" });
@@ -486,6 +489,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ messageId, message: "Mention all message queued successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to send mention all message" });
+    }
+  });
+
+  app.post("/api/whatsapp/send-bulk-grades", async (req, res) => {
+    try {
+      const { gradeIds } = req.body;
+      
+      if (!gradeIds || !Array.isArray(gradeIds) || gradeIds.length === 0) {
+        return res.status(400).json({ message: "Grade IDs array is required" });
+      }
+
+      const students = await storage.getAllStudents();
+      const grades = await storage.getAllGrades();
+      
+      let sent = 0;
+      let total = gradeIds.length;
+
+      for (const gradeId of gradeIds) {
+        const grade = grades.find(g => g.id === gradeId);
+        if (!grade) continue;
+
+        const student = students.find(s => s.id === grade.studentId);
+        if (!student || !student.guardianPhone) continue;
+
+        try {
+          await whatsappService.sendGradeMessage(
+            student.name,
+            student.guardianPhone,
+            `${grade.score}/${grade.totalMarks} (${grade.grade})`,
+            grade.subject,
+            grade.notes
+          );
+          
+          // Mark as sent
+          await storage.updateGrade(gradeId, { sentToParent: true });
+          sent++;
+          
+          // Add a small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`Failed to send grade message for ${student.name}:`, error);
+        }
+      }
+      
+      res.json({ sent, total, message: `Successfully sent ${sent} of ${total} messages` });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send bulk grade messages" });
     }
   });
 

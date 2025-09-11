@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Save, TrendingUp, Award, BarChart3, MessageCircle, Send } from "lucide-react";
+import { Save, TrendingUp, Award, BarChart3, MessageCircle, Send, SendHorizontal } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function GradeEntry() {
   const { toast } = useToast();
@@ -32,6 +33,7 @@ export default function GradeEntry() {
       assessmentType: "",
       score: 0,
       totalMarks: 100,
+      notes: "",
     },
   });
 
@@ -51,7 +53,7 @@ export default function GradeEntry() {
     },
     onError: (error) => {
       toast({
-        title: "Failed to save grade",
+        title: "فشل في حفظ الدرجة",
         description: error.message,
         variant: "destructive",
       });
@@ -59,29 +61,53 @@ export default function GradeEntry() {
   });
 
   const sendWhatsAppMutation = useMutation({
-    mutationFn: async ({ studentName, phoneNumber, grade, subject }: { 
+    mutationFn: async ({ studentName, phoneNumber, grade, subject, notes }: { 
       studentName: string; 
       phoneNumber: string; 
       grade: string; 
       subject: string;
+      notes?: string;
     }) => {
       const response = await apiRequest("POST", "/api/whatsapp/send-grade", {
         studentName,
         phoneNumber,
         grade,
-        subject
+        subject,
+        notes
       });
       return response.json();
     },
     onSuccess: () => {
       toast({
-        title: "WhatsApp Message Sent",
-        description: "Grade sent to student/guardian via WhatsApp",
+        title: "تم إرسال رسالة واتساب",
+        description: "تم إرسال الدرجة إلى ولي الأمر عبر واتساب",
       });
     },
     onError: (error) => {
       toast({
-        title: "Failed to send WhatsApp",
+        title: "فشل في إرسال الواتساب",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendBulkWhatsAppMutation = useMutation({
+    mutationFn: async (gradeIds: string[]) => {
+      const response = await apiRequest("POST", "/api/whatsapp/send-bulk-grades", {
+        gradeIds
+      });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      toast({
+        title: "تم إرسال الدرجات",
+        description: `تم إرسال ${result.sent} من ${result.total} رسالة`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "فشل في الإرسال الجماعي",
         description: error.message,
         variant: "destructive",
       });
@@ -92,8 +118,8 @@ export default function GradeEntry() {
     const student = students.find(s => s.id === gradeData.studentId);
     if (!student) {
       toast({
-        title: "Student not found",
-        description: "Cannot send WhatsApp message",
+        title: "الطالب غير موجود",
+        description: "لا يمكن إرسال رسالة الواتساب",
         variant: "destructive",
       });
       return;
@@ -101,8 +127,8 @@ export default function GradeEntry() {
 
     if (!student.guardianPhone) {
       toast({
-        title: "No phone number",
-        description: "Student doesn't have a guardian phone number",
+        title: "لا يوجد رقم هاتف",
+        description: "الطالب ليس لديه رقم هاتف ولي الأمر",
         variant: "destructive",
       });
       return;
@@ -112,8 +138,32 @@ export default function GradeEntry() {
       studentName: student.name,
       phoneNumber: student.guardianPhone,
       grade: `${gradeData.score}/${gradeData.totalMarks} (${gradeData.grade})`,
-      subject: gradeData.subject
+      subject: gradeData.subject,
+      notes: gradeData.notes || undefined
     });
+  };
+
+  const handleBulkSend = () => {
+    if (recentGrades.length === 0) {
+      toast({
+        title: "لا توجد درجات",
+        description: "لا يوجد درجات للإرسال",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const unsent = recentGrades.filter(grade => !grade.sentToParent);
+    if (unsent.length === 0) {
+      toast({
+        title: "تم الإرسال من قبل",
+        description: "جميع الدرجات تم إرسالها من قبل",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    sendBulkWhatsAppMutation.mutate(unsent.map(g => g.id));
   };
 
   const onSubmit = (data: InsertGrade) => {
@@ -283,6 +333,25 @@ export default function GradeEntry() {
                       )}
                     />
                   </div>
+
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>ملاحظات (اختيارية)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="أدخل أي ملاحظات إضافية حول أداء الطالب..."
+                            data-testid="textarea-notes"
+                            {...field}
+                            className="min-h-[80px]"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   
                   <Button 
                     type="submit" 
@@ -291,7 +360,7 @@ export default function GradeEntry() {
                     data-testid="button-save-grade"
                   >
                     <Save className="mr-2" size={16} />
-                    {createGradeMutation.isPending ? "Saving..." : "Save Grade"}
+                    {createGradeMutation.isPending ? "حفظ..." : "حفظ الدرجة"}
                   </Button>
                 </form>
               </Form>
@@ -348,8 +417,17 @@ export default function GradeEntry() {
 
       {/* Recent Grades Table */}
       <Card>
-        <div className="px-6 py-4 border-b border-border">
-          <h3 className="text-lg font-semibold">Recent Grades</h3>
+        <div className="px-6 py-4 border-b border-border flex justify-between items-center">
+          <h3 className="text-lg font-semibold">الدرجات الحديثة</h3>
+          <Button
+            onClick={handleBulkSend}
+            disabled={sendBulkWhatsAppMutation.isPending || recentGrades.filter(g => !g.sentToParent).length === 0}
+            className="bg-green-600 hover:bg-green-700"
+            data-testid="button-bulk-send"
+          >
+            <SendHorizontal className="w-4 h-4 ml-2" />
+            {sendBulkWhatsAppMutation.isPending ? "جاري الإرسال..." : "إرسال جماعي للواتساب"}
+          </Button>
         </div>
         <CardContent className="p-0">
           {recentGrades.length === 0 ? (
@@ -361,13 +439,14 @@ export default function GradeEntry() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted">
-                    <TableHead>Student</TableHead>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Assessment</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Grade</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>الطالب</TableHead>
+                    <TableHead>المادة</TableHead>
+                    <TableHead>نوع التقييم</TableHead>
+                    <TableHead>النتيجة</TableHead>
+                    <TableHead>الدرجة</TableHead>
+                    <TableHead>الملاحظات</TableHead>
+                    <TableHead>التاريخ</TableHead>
+                    <TableHead>الإجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -395,8 +474,17 @@ export default function GradeEntry() {
                             {grade.grade}
                           </Badge>
                         </TableCell>
+                        <TableCell className="max-w-[200px]" data-testid={`text-grade-notes-${grade.id}`}>
+                          {grade.notes ? (
+                            <div className="text-sm text-muted-foreground line-clamp-2" title={grade.notes}>
+                              {grade.notes}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">لا توجد ملاحظات</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-muted-foreground" data-testid={`text-grade-date-${grade.id}`}>
-                          {new Date(grade.createdAt!).toLocaleDateString()}
+                          {new Date(grade.createdAt!).toLocaleDateString('ar-SA')}
                         </TableCell>
                         <TableCell>
                           <Button

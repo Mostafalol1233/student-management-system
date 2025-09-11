@@ -188,14 +188,18 @@ class WhatsAppService {
     }
   }
 
-  async sendGradeMessage(studentName: string, phoneNumber: string, grade: string, subject: string = 'الامتحان') {
-    const message = `📊 نتيجة ${subject}
+  async sendGradeMessage(studentName: string, phoneNumber: string, grade: string, subject: string = 'الامتحان', notes?: string) {
+    let message = `📊 نتيجة ${subject}
 
 👤 اسم الطالب: ${studentName}
 📝 الدرجة: ${grade}
-📅 التاريخ: ${new Date().toLocaleDateString('ar-EG')}
+📅 التاريخ: ${new Date().toLocaleDateString('ar-EG')}`;
 
-📞 للاستفسار يرجى التواصل مع إدارة المدرسة
+    if (notes) {
+      message += `\n\n💬 ملاحظات المعلم:\n${notes}`;
+    }
+
+    message += `\n\n📞 للاستفسار يرجى التواصل مع إدارة المدرسة
 
 🌟 نتمنى للطالب دوام التفوق والنجاح`;
 

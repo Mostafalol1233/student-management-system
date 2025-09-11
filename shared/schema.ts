@@ -44,6 +44,8 @@ export const grades = pgTable("grades", {
   score: integer("score").notNull(),
   totalMarks: integer("total_marks").notNull(),
   grade: text("grade"),
+  notes: text("notes"), // ملاحظات على درجة الطالب
+  sentToParent: boolean("sent_to_parent").default(false), // هل تم إرسال النتيجة لولي الأمر
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -71,6 +73,7 @@ export const insertGradeSchema = createInsertSchema(grades).omit({
   id: true,
   createdAt: true,
   grade: true,
+  sentToParent: true,
 });
 
 // Types

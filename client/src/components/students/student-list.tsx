@@ -262,8 +262,19 @@ ${filteredStudents.map(student =>
                             size="sm"
                             variant="ghost"
                             data-testid={`button-view-${student.id}`}
+                            title="عرض ملف الطالب"
                           >
                             <Eye size={16} className="text-primary" />
+                          </Button>
+                        </Link>
+                        <Link href={`/student-comprehensive/${student.id}`}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            data-testid={`button-comprehensive-${student.id}`}
+                            title="الملف الشامل للطالب"
+                          >
+                            <User size={16} className="text-green-600" />
                           </Button>
                         </Link>
                         <Button
