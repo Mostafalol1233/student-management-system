@@ -201,15 +201,17 @@ export default function SessionManagement() {
         </Card>
 
         {/* Active Session */}
-        <Card>
+        <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-2 border-primary/20">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Current Session</h3>
               {activeSession && (
-                <Badge variant="secondary" className="bg-secondary/10 text-secondary">
-                  <Circle className="mr-2 animate-pulse" size={8} />
-                  Live
-                </Badge>
+                <div className="flex items-center space-x-2">
+                  <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                    <Circle className="mr-2 animate-pulse fill-green-500" size={8} />
+                    Live Session
+                  </Badge>
+                </div>
               )}
             </div>
             {activeSession ? (
@@ -234,23 +236,41 @@ export default function SessionManagement() {
                     </div>
                   </div>
                 </div>
-                <div className="pt-4 space-y-2">
+                <div className="pt-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      className="bg-blue-600 hover:bg-blue-700 text-white" 
+                      data-testid="button-qr-attendance"
+                      onClick={() => {
+                        window.location.href = "/attendance-scanning";
+                      }}
+                    >
+                      <QrCode className="mr-1" size={14} />
+                      QR Scanner
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                      data-testid="button-manual-attendance"
+                      onClick={() => {
+                        window.location.href = "/attendance-scanning";
+                      }}
+                    >
+                      ⌨️ Manual Entry
+                    </Button>
+                  </div>
                   <Button 
-                    className="w-full bg-accent hover:bg-accent/90" 
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-medium" 
                     data-testid="button-start-attendance"
                     onClick={() => {
-                      toast({
-                        title: "Starting attendance",
-                        description: "Navigate to Attendance Scanning to begin",
-                      });
+                      window.location.href = "/attendance-scanning";
                     }}
                   >
-                    <QrCode className="mr-2" size={16} />
-                    Start Attendance
+                    🚀 Start Advanced Attendance
                   </Button>
                   <Button 
                     variant="outline" 
-                    className="w-full border-destructive text-destructive hover:bg-destructive/10"
+                    className="w-full border-red-600 text-red-600 hover:bg-red-50"
                     data-testid="button-end-session"
                     onClick={() => handleEndSession(activeSession)}
                     disabled={updateSessionMutation.isPending}
