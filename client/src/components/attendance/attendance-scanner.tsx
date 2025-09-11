@@ -17,6 +17,7 @@ declare global {
 
 export default function AttendanceScanner() {
   const [manualCode, setManualCode] = useState("");
+  const [manualCodeError, setManualCodeError] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [recentScans, setRecentScans] = useState<Array<{
     student: Student;
@@ -144,6 +145,9 @@ export default function AttendanceScanner() {
         description: `No student found with code: ${code}`,
         variant: "destructive",
       });
+      if (method === "manual") {
+        setManualCodeError("Student not found with this code");
+      }
       return;
     }
 
@@ -155,6 +159,9 @@ export default function AttendanceScanner() {
         description: `${student.name} is already marked present`,
         variant: "destructive",
       });
+      if (method === "manual") {
+        setManualCodeError(`${student.name} is already marked present`);
+      }
       return;
     }
 
@@ -164,12 +171,33 @@ export default function AttendanceScanner() {
       status: "present",
       scanMethod: method,
     });
+
+    // Clear manual entry on successful submission
+    if (method === "manual") {
+      setManualCode("");
+      setManualCodeError("");
+    }
   };
 
   const handleManualEntry = () => {
+    setManualCodeError("");
     if (manualCode.length === 3) {
       handleCodeScan(manualCode, "manual");
-      setManualCode("");
+    }
+  };
+
+  const validateCodeRealTime = (code: string) => {
+    setManualCodeError("");
+    if (code.length === 3) {
+      const student = students.find(s => s.code === code);
+      if (!student) {
+        setManualCodeError("Student not found with this code");
+      } else {
+        const alreadyPresent = sessionAttendance.some(att => att.studentId === student.id);
+        if (alreadyPresent) {
+          setManualCodeError(`${student.name} is already marked present`);
+        }
+      }
     }
   };
 
@@ -315,25 +343,67 @@ export default function AttendanceScanner() {
                       <Input
                         placeholder="Enter student 3-digit code..."
                         value={manualCode}
-                        onChange={(e) => setManualCode(e.target.value.slice(0, 3))}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 3);
+                          setManualCode(value);
+                          validateCodeRealTime(value);
+                        }}
                         maxLength={3}
-                        className="font-mono text-center text-xl h-12 border-2 border-orange-300 focus:border-orange-500"
+                        className={`font-mono text-center text-xl h-12 border-2 focus:border-orange-500 ${
+                          manualCodeError 
+                            ? 'border-red-400 bg-red-50' 
+                            : manualCode.length === 3 && !manualCodeError 
+                              ? 'border-green-400 bg-green-50' 
+                              : 'border-orange-300'
+                        }`}
                         data-testid="input-manual-code"
                       />
                     </div>
                     <Button 
                       onClick={handleManualEntry}
-                      disabled={manualCode.length !== 3 || recordAttendanceMutation.isPending}
-                      className="h-12 px-6 bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+                      disabled={manualCode.length !== 3 || manualCodeError !== "" || recordAttendanceMutation.isPending}
+                      className="h-12 px-6 bg-orange-500 hover:bg-orange-600 text-white font-semibold disabled:bg-gray-400"
                       data-testid="button-mark-present"
                     >
                       <Check className="mr-2" size={16} />
-                      ✅ Mark Present
+                      {recordAttendanceMutation.isPending ? "Processing..." : "✅ Mark Present"}
                     </Button>
                   </div>
-                  {manualCode.length > 0 && manualCode.length < 3 && (
+                  
+                  {/* Progress indicator */}
+                  <div className="mt-3 flex space-x-1">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className={`w-8 h-2 rounded-full ${
+                          i < manualCode.length
+                            ? manualCodeError
+                              ? 'bg-red-400'
+                              : 'bg-green-400'
+                            : 'bg-gray-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Status messages */}
+                  {manualCode.length > 0 && manualCode.length < 3 && !manualCodeError && (
                     <p className="mt-2 text-sm text-orange-600">
                       Enter {3 - manualCode.length} more digit{3 - manualCode.length > 1 ? 's' : ''}
+                    </p>
+                  )}
+                  
+                  {manualCodeError && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center">
+                      <AlertCircle className="mr-1" size={14} />
+                      {manualCodeError}
+                    </p>
+                  )}
+                  
+                  {manualCode.length === 3 && !manualCodeError && (
+                    <p className="mt-2 text-sm text-green-600 flex items-center">
+                      <Check className="mr-1" size={14} />
+                      Ready to mark attendance for {students.find(s => s.code === manualCode)?.name}
                     </p>
                   )}
                 </div>
