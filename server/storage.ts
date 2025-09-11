@@ -83,6 +83,8 @@ export class MemStorage implements IStorage {
       ...insertStudent,
       id,
       code,
+      guardianPhone2: insertStudent.guardianPhone2 || null,
+      address: insertStudent.address || null,
       qrPath: null,
       status: "active",
       createdAt: new Date(),
