@@ -7,6 +7,8 @@ export const students = pgTable("students", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   guardianPhone: text("guardian_phone").notNull(),
+  guardianPhone2: text("guardian_phone2"),
+  address: text("address"),
   code: text("code").notNull().unique(),
   gradeLevel: text("grade_level").notNull(),
   section: text("section").notNull(),
