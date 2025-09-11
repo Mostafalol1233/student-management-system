@@ -3,6 +3,13 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema } from "@shared/schema";
 import { z } from "zod";
+import multer from "multer";
+
+// Configure multer for file uploads
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Student routes
@@ -49,6 +56,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid student data", errors: error.errors });
       }
       res.status(500).json({ message: "Failed to create student" });
+    }
+  });
+
+  app.post("/api/students/bulk-import", upload.single('csvFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No CSV file provided" });
+      }
+
+      const csvContent = req.file.buffer.toString('utf-8');
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        return res.status(400).json({ message: "CSV file must have header and at least one data row" });
+      }
+
+      const header = lines[0].split(',').map(h => h.trim());
+      const results = {
+        success: [] as any[],
+        errors: [] as { row: number; error: string; data: string }[]
+      };
+
+      // Process each data row
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        
+        try {
+          // Map CSV columns to student data
+          const studentData: any = {};
+          header.forEach((col, index) => {
+            const value = values[index] || '';
+            switch (col.toLowerCase()) {
+              case 'name':
+              case 'student name':
+              case 'الاسم':
+                studentData.name = value;
+                break;
+              case 'guardian phone':
+              case 'guardianphone':
+              case 'phone':
+              case 'رقم ولي الأمر':
+                studentData.guardianPhone = value;
+                break;
+              case 'guardian phone 2':
+              case 'guardianphone2':
+              case 'phone2':
+              case 'رقم ولي الأمر 2':
+                studentData.guardianPhone2 = value || null;
+                break;
+              case 'address':
+              case 'العنوان':
+                studentData.address = value || null;
+                break;
+              case 'grade':
+              case 'grade level':
+              case 'gradelevel':
+              case 'الصف':
+                studentData.gradeLevel = value;
+                break;
+              case 'section':
+              case 'class':
+              case 'الشعبة':
+                studentData.section = value;
+                break;
+            }
+          });
+
+          // Validate required fields
+          if (!studentData.name || !studentData.guardianPhone || !studentData.gradeLevel || !studentData.section) {
+            results.errors.push({
+              row: i + 1,
+              error: "Missing required fields (name, guardianPhone, gradeLevel, section)",
+              data: lines[i]
+            });
+            continue;
+          }
+
+          const validatedData = insertStudentSchema.parse(studentData);
+          const student = await storage.createStudent(validatedData);
+          results.success.push(student);
+        } catch (error: any) {
+          results.errors.push({
+            row: i + 1,
+            error: error.message || "Failed to process row",
+            data: lines[i]
+          });
+        }
+      }
+
+      res.status(200).json({
+        message: `Processed ${results.success.length + results.errors.length} rows`,
+        successCount: results.success.length,
+        errorCount: results.errors.length,
+        students: results.success,
+        errors: results.errors
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to process CSV file", error: error.message });
     }
   });
 
