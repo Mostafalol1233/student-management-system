@@ -55,7 +55,7 @@ export function WhatsAppManagement() {
 
   // Connect mutation
   const connectMutation = useMutation({
-    mutationFn: () => apiRequest('/api/whatsapp/connect', 'POST'),
+    mutationFn: () => apiRequest('POST', '/api/whatsapp/connect'),
     onSuccess: () => {
       toast({
         title: "اتصال WhatsApp",
@@ -75,7 +75,7 @@ export function WhatsAppManagement() {
 
   // Disconnect mutation
   const disconnectMutation = useMutation({
-    mutationFn: () => apiRequest('/api/whatsapp/disconnect', 'POST'),
+    mutationFn: () => apiRequest('POST', '/api/whatsapp/disconnect'),
     onSuccess: () => {
       toast({
         title: "قطع اتصال WhatsApp",
@@ -88,7 +88,7 @@ export function WhatsAppManagement() {
 
   // Clear messages mutation
   const clearMessagesMutation = useMutation({
-    mutationFn: () => apiRequest('/api/whatsapp/messages', 'DELETE'),
+    mutationFn: () => apiRequest('DELETE', '/api/whatsapp/messages'),
     onSuccess: () => {
       toast({
         title: "حذف الرسائل",

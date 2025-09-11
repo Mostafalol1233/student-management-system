@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Save, TrendingUp, Award, BarChart3 } from "lucide-react";
+import { Save, TrendingUp, Award, BarChart3, MessageCircle, Send } from "lucide-react";
 
 export default function GradeEntry() {
   const { toast } = useToast();
@@ -57,6 +57,64 @@ export default function GradeEntry() {
       });
     },
   });
+
+  const sendWhatsAppMutation = useMutation({
+    mutationFn: async ({ studentName, phoneNumber, grade, subject }: { 
+      studentName: string; 
+      phoneNumber: string; 
+      grade: string; 
+      subject: string;
+    }) => {
+      const response = await apiRequest("POST", "/api/whatsapp/send-grade", {
+        studentName,
+        phoneNumber,
+        grade,
+        subject
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "WhatsApp Message Sent",
+        description: "Grade sent to student/guardian via WhatsApp",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to send WhatsApp",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendWhatsApp = (gradeData: Grade) => {
+    const student = students.find(s => s.id === gradeData.studentId);
+    if (!student) {
+      toast({
+        title: "Student not found",
+        description: "Cannot send WhatsApp message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!student.guardianPhone) {
+      toast({
+        title: "No phone number",
+        description: "Student doesn't have a guardian phone number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    sendWhatsAppMutation.mutate({
+      studentName: student.name,
+      phoneNumber: student.guardianPhone,
+      grade: `${gradeData.score}/${gradeData.totalMarks} (${gradeData.grade})`,
+      subject: gradeData.subject
+    });
+  };
 
   const onSubmit = (data: InsertGrade) => {
     createGradeMutation.mutate(data);
@@ -309,6 +367,7 @@ export default function GradeEntry() {
                     <TableHead>Score</TableHead>
                     <TableHead>Grade</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -338,6 +397,19 @@ export default function GradeEntry() {
                         </TableCell>
                         <TableCell className="text-muted-foreground" data-testid={`text-grade-date-${grade.id}`}>
                           {new Date(grade.createdAt!).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSendWhatsApp(grade)}
+                            disabled={sendWhatsAppMutation.isPending || !student?.guardianPhone}
+                            className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+                            data-testid={`button-whatsapp-${grade.id}`}
+                          >
+                            <MessageCircle className="w-4 h-4 mr-1" />
+                            WhatsApp
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );

@@ -1,4 +1,11 @@
 node_modules
+
+# WhatsApp Baileys sensitive data
+auth_info_baileys/
+data/whatsapp-messages.json
+
+# Local data files
+data/
 dist
 .DS_Store
 server/public
