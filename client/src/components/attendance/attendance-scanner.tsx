@@ -177,6 +177,21 @@ export default function AttendanceScanner() {
   const totalStudents = students.length;
   const absentStudents = totalStudents - presentStudents;
 
+  const formatTime = (time: string) => {
+    try {
+      const [hours, minutes] = time.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hours), parseInt(minutes));
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return time;
+    }
+  };
+
   if (!activeSession) {
     return (
       <Card>
@@ -193,63 +208,134 @@ export default function AttendanceScanner() {
 
   return (
     <div className="space-y-6">
+      {/* Session Info Header */}
+      <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-l-4 border-l-blue-500">
+        <CardContent className="p-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">{activeSession.name}</h2>
+              <p className="text-gray-600">📅 {activeSession.date} • ⏰ {formatTime(activeSession.time)} • ⏱️ {activeSession.duration} min</p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-green-600">{presentStudents}/{totalStudents}</div>
+              <div className="text-sm text-gray-600">Present Students</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* QR Scanner */}
+        {/* Advanced Attendance Methods */}
         <div className="lg:col-span-2">
-          <Card>
+          <Card className="border-2 border-primary/20">
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold mb-4">QR Code Scanner</h3>
-              <div className="space-y-4">
-                <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                  {!isScanning ? (
-                    <div className="text-center">
-                      <Camera className="mx-auto mb-4 text-muted-foreground" size={48} />
-                      <p className="text-muted-foreground mb-4">Camera preview will appear here</p>
-                      <Button 
-                        onClick={startScanner}
-                        data-testid="button-enable-camera"
-                      >
-                        <Video className="mr-2" size={16} />
-                        Enable Camera
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="w-full h-full relative">
-                      <div id="qr-reader" className="w-full h-full"></div>
-                      <Button
-                        className="absolute top-4 right-4"
-                        variant="destructive"
-                        onClick={stopScanner}
-                        data-testid="button-stop-camera"
-                      >
-                        <X className="mr-2" size={16} />
-                        Stop Camera
-                      </Button>
-                    </div>
-                  )}
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+                  🎯 Advanced Attendance System
+                </h3>
+                <Badge variant="outline" className="border-green-500 text-green-700">
+                  Dual Mode Ready
+                </Badge>
+              </div>
+              <div className="space-y-6">
+                {/* Mode Selection */}
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                  <button
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                      !isScanning
+                        ? 'bg-white shadow-sm text-blue-600 border border-blue-200'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                    onClick={stopScanner}
+                  >
+                    📱 QR Camera Mode
+                  </button>
+                  <button
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                      isScanning
+                        ? 'bg-white shadow-sm text-green-600 border border-green-200'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                    onClick={() => {}}
+                  >
+                    ⌨️ Manual Entry Mode
+                  </button>
+                </div>
+
+                {/* QR Scanner Section */}
+                <div className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4">
+                  <div className="aspect-video bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg flex items-center justify-center">
+                    {!isScanning ? (
+                      <div className="text-center">
+                        <div className="w-20 h-20 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Camera className="text-blue-600" size={32} />
+                        </div>
+                        <h4 className="text-lg font-semibold text-gray-800 mb-2">QR Code Scanner</h4>
+                        <p className="text-gray-600 mb-6">Scan student QR codes for instant attendance</p>
+                        <Button 
+                          onClick={startScanner}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
+                          data-testid="button-enable-camera"
+                        >
+                          <Video className="mr-2" size={16} />
+                          🚀 Start QR Scanner
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="w-full h-full relative">
+                        <div id="qr-reader" className="w-full h-full rounded-lg"></div>
+                        <div className="absolute top-4 left-4">
+                          <Badge className="bg-green-500 text-white">
+                            🔴 LIVE - Scanning QR Codes
+                          </Badge>
+                        </div>
+                        <Button
+                          className="absolute top-4 right-4 bg-red-500 hover:bg-red-600"
+                          onClick={stopScanner}
+                          data-testid="button-stop-camera"
+                        >
+                          <X className="mr-2" size={16} />
+                          Stop Scanner
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
-                <div className="border-t border-border pt-4">
-                  <h4 className="font-medium mb-2">Manual Code Entry</h4>
-                  <div className="flex space-x-2">
-                    <Input
-                      placeholder="Enter 3-digit code"
-                      value={manualCode}
-                      onChange={(e) => setManualCode(e.target.value.slice(0, 3))}
-                      maxLength={3}
-                      className="flex-1 font-mono text-center text-lg"
-                      data-testid="input-manual-code"
-                    />
+                {/* Manual Entry Section */}
+                <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-6">
+                  <div className="flex items-center mb-4">
+                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mr-3">
+                      ⌨️
+                    </div>
+                    <h4 className="text-lg font-semibold text-gray-800">Manual Entry Mode</h4>
+                  </div>
+                  <div className="flex space-x-3">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Enter student 3-digit code..."
+                        value={manualCode}
+                        onChange={(e) => setManualCode(e.target.value.slice(0, 3))}
+                        maxLength={3}
+                        className="font-mono text-center text-xl h-12 border-2 border-orange-300 focus:border-orange-500"
+                        data-testid="input-manual-code"
+                      />
+                    </div>
                     <Button 
                       onClick={handleManualEntry}
                       disabled={manualCode.length !== 3 || recordAttendanceMutation.isPending}
-                      className="bg-secondary hover:bg-secondary/90"
+                      className="h-12 px-6 bg-orange-500 hover:bg-orange-600 text-white font-semibold"
                       data-testid="button-mark-present"
                     >
                       <Check className="mr-2" size={16} />
-                      Mark Present
+                      ✅ Mark Present
                     </Button>
                   </div>
+                  {manualCode.length > 0 && manualCode.length < 3 && (
+                    <p className="mt-2 text-sm text-orange-600">
+                      Enter {3 - manualCode.length} more digit{3 - manualCode.length > 1 ? 's' : ''}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>

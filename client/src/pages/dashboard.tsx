@@ -6,13 +6,15 @@ import SessionManagement from "@/components/sessions/session-management";
 import AttendanceScanner from "@/components/attendance/attendance-scanner";
 import GradeEntry from "@/components/grades/grade-entry";
 import Reports from "@/components/reports/reports";
+import { WhatsAppManagement } from "@/components/whatsapp/whatsapp-management";
 
 export type ActiveSection = 
   | "student-registration" 
   | "session-management" 
   | "attendance-scanning" 
   | "grade-entry" 
-  | "reports";
+  | "reports"
+  | "whatsapp-management";
 
 export default function Dashboard() {
   const [activeSection, setActiveSection] = useState<ActiveSection>("student-registration");
@@ -37,6 +39,10 @@ export default function Dashboard() {
     "reports": {
       title: "Reports & Analytics",
       description: "View attendance and grade reports"
+    },
+    "whatsapp-management": {
+      title: "WhatsApp Management",
+      description: "Send grades via WhatsApp and manage messages"
     }
   };
 
@@ -52,6 +58,8 @@ export default function Dashboard() {
         return <GradeEntry />;
       case "reports":
         return <Reports />;
+      case "whatsapp-management":
+        return <WhatsAppManagement />;
       default:
         return <StudentRegistration />;
     }

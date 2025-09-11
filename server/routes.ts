@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
+import { whatsappService } from "./whatsapp-service";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -324,6 +325,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete grade" });
+    }
+  });
+
+  // WhatsApp API routes
+  app.get("/api/whatsapp/status", async (req, res) => {
+    try {
+      const status = whatsappService.getConnectionStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get WhatsApp status" });
+    }
+  });
+
+  app.post("/api/whatsapp/connect", async (req, res) => {
+    try {
+      await whatsappService.connect();
+      res.json({ message: "WhatsApp connection initiated" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to connect to WhatsApp" });
+    }
+  });
+
+  app.post("/api/whatsapp/disconnect", async (req, res) => {
+    try {
+      whatsappService.disconnect();
+      res.json({ message: "WhatsApp disconnected successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to disconnect WhatsApp" });
+    }
+  });
+
+  app.post("/api/whatsapp/send-grade", async (req, res) => {
+    try {
+      const { studentName, phoneNumber, grade, subject } = req.body;
+      
+      if (!studentName || !phoneNumber || !grade) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const messageId = await whatsappService.sendGradeMessage(
+        studentName, 
+        phoneNumber, 
+        grade, 
+        subject || 'الامتحان'
+      );
+      
+      res.json({ messageId, message: "Grade message queued successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send grade message" });
+    }
+  });
+
+  app.get("/api/whatsapp/messages", async (req, res) => {
+    try {
+      const messages = whatsappService.getStoredMessages();
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get messages" });
+    }
+  });
+
+  app.get("/api/whatsapp/messages/export", async (req, res) => {
+    try {
+      const format = req.query.format as string || 'json';
+      
+      if (format === 'csv') {
+        const csvData = whatsappService.downloadMessagesAsCSV();
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=whatsapp-messages.csv');
+        res.send(csvData);
+      } else {
+        const jsonData = whatsappService.downloadMessagesAsJSON();
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', 'attachment; filename=whatsapp-messages.json');
+        res.send(jsonData);
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to export messages" });
+    }
+  });
+
+  app.delete("/api/whatsapp/messages", async (req, res) => {
+    try {
+      whatsappService.clearMessages();
+      res.json({ message: "Messages cleared successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to clear messages" });
     }
   });
 

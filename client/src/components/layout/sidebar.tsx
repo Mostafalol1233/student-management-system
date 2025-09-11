@@ -1,4 +1,4 @@
-import { GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3, User } from "lucide-react";
+import { GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3, User, MessageCircle } from "lucide-react";
 import type { ActiveSection } from "@/pages/dashboard";
 
 interface SidebarProps {
@@ -32,6 +32,11 @@ export default function Sidebar({ activeSection, onSectionChange }: SidebarProps
       id: "reports" as ActiveSection,
       icon: BarChart3,
       label: "Reports"
+    },
+    {
+      id: "whatsapp-management" as ActiveSection,
+      icon: MessageCircle,
+      label: "WhatsApp Management"
     }
   ];
 
