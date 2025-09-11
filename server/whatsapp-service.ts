@@ -22,6 +22,16 @@ interface StoredMessage {
   status: 'pending' | 'sent' | 'failed';
   studentName?: string;
   grade?: string;
+  isGroupMessage?: boolean;
+  groupId?: string;
+  groupName?: string;
+}
+
+interface GroupInfo {
+  id: string;
+  name: string;
+  participantsCount: number;
+  lastMessageTime?: string;
 }
 
 class WhatsAppService {
@@ -190,6 +200,90 @@ class WhatsAppService {
 🌟 نتمنى للطالب دوام التفوق والنجاح`;
 
     return await this.sendMessage(phoneNumber, message, studentName, grade);
+  }
+
+  // Get available groups
+  async getGroups(): Promise<GroupInfo[]> {
+    if (!this.isConnected || !this.sock) {
+      return [];
+    }
+
+    try {
+      // Get all chats from WhatsApp
+      const chats = await this.sock.groupFetchAllParticipating();
+      const groups: GroupInfo[] = [];
+
+      for (const [groupId, group] of Object.entries(chats)) {
+        if (group && typeof group === 'object' && 'subject' in group && 'participants' in group) {
+          const groupData = group as any;
+          groups.push({
+            id: groupId,
+            name: groupData.subject || 'Unknown Group',
+            participantsCount: Array.isArray(groupData.participants) ? groupData.participants.length : 0,
+            lastMessageTime: new Date().toISOString()
+          });
+        }
+      }
+
+      return groups;
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      return [];
+    }
+  }
+
+  // Send message to a group
+  async sendGroupMessage(groupId: string, message: string, mentionAll: boolean = false, groupName?: string): Promise<string> {
+    const messageId = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store message locally first
+    const storedMessage: StoredMessage = {
+      id: messageId,
+      to: groupId,
+      message,
+      timestamp: new Date().toISOString(),
+      status: 'pending',
+      isGroupMessage: true,
+      groupId,
+      groupName
+    };
+    
+    this.saveMessage(storedMessage);
+
+    if (!this.isConnected || !this.sock) {
+      console.log('WhatsApp not connected, group message saved for later');
+      return messageId;
+    }
+
+    try {
+      let messageContent: any = { text: message };
+      
+      // If mentionAll is true, get all group participants and mention them
+      if (mentionAll) {
+        const groupMetadata = await this.sock.groupMetadata(groupId);
+        const participants = groupMetadata.participants.map((p: any) => p.id);
+        
+        messageContent = {
+          text: `@${participants.map(() => '').join(' @')}\n\n${message}`,
+          mentions: participants
+        };
+      }
+      
+      await this.sock.sendMessage(groupId, messageContent);
+      console.log(`Group message sent to ${groupName || groupId}: ${message}`);
+      
+      this.updateMessageStatus(messageId, 'sent');
+      return messageId;
+    } catch (error) {
+      console.error('Error sending group message:', error);
+      this.updateMessageStatus(messageId, 'failed');
+      throw error;
+    }
+  }
+
+  // Send mention all message to group
+  async mentionAllInGroup(groupId: string, message: string, groupName?: string): Promise<string> {
+    return await this.sendGroupMessage(groupId, message, true, groupName);
   }
 
   downloadMessagesAsJSON(): Buffer {

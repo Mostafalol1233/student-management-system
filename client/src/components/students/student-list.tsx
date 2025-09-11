@@ -84,7 +84,32 @@ export default function StudentList() {
               />
               <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
             </div>
-            <Button variant="secondary" data-testid="button-export-students">
+            <Button 
+              variant="secondary" 
+              data-testid="button-export-students"
+              onClick={() => {
+                // Export students as CSV
+                const csvContent = `Name,Code,Guardian Phone,Guardian Phone 2,Address,Grade Level,Section,Status
+${filteredStudents.map(student => 
+  `"${student.name}","${student.code}","${student.guardianPhone}","${student.guardianPhone2 || ''}","${student.address || ''}","${student.gradeLevel}","${student.section}","${student.status}"`
+).join('\n')}`;
+                
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `students_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                toast({
+                  title: "Students exported",
+                  description: `Exported ${filteredStudents.length} students to CSV file`,
+                });
+              }}
+            >
               <FileText className="mr-2" size={16} />
               Export
             </Button>

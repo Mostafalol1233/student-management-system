@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { GroupManagement } from './group-management';
 import { 
   Smartphone, 
   Wifi, 
@@ -19,7 +21,8 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  Send
+  Send,
+  Users
 } from 'lucide-react';
 
 interface WhatsAppStatus {
@@ -197,237 +200,259 @@ export function WhatsAppManagement() {
             </div>
             <div>
               <h2 className="text-2xl font-bold">إدارة WhatsApp</h2>
-              <p className="text-gray-600">إرسال الدرجات عبر رسائل WhatsApp</p>
+              <p className="text-gray-600">إرسال الدرجات والرسائل عبر WhatsApp</p>
             </div>
           </CardTitle>
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Connection Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5" />
-              حالة الاتصال
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {statusLoading ? (
-              <div className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                جاري التحقق من الحالة...
-              </div>
-            ) : status ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${getStatusColor(status.state)}`}></div>
-                  <Badge variant={status.isConnected ? "default" : "secondary"}>
-                    {status.isConnected ? (
-                      <>
-                        <Wifi className="w-4 h-4 mr-1" />
-                        متصل
-                      </>
-                    ) : (
-                      <>
-                        <WifiOff className="w-4 h-4 mr-1" />
-                        غير متصل
-                      </>
-                    )}
-                  </Badge>
-                  <span className="text-sm text-gray-600">
-                    الحالة: {status.state}
-                  </span>
-                </div>
+      {/* Tabs for Individual and Group messaging */}
+      <Tabs defaultValue="individual" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="individual" className="flex items-center gap-2">
+            <MessageCircle className="w-4 h-4" />
+            الرسائل الفردية
+          </TabsTrigger>
+          <TabsTrigger value="groups" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            رسائل المجموعات
+          </TabsTrigger>
+        </TabsList>
 
-                <div className="flex gap-2">
-                  {!status.isConnected ? (
-                    <Button 
-                      onClick={() => connectMutation.mutate()}
-                      disabled={connectMutation.isPending}
-                      className="bg-green-600 hover:bg-green-700"
-                      data-testid="button-whatsapp-connect"
-                    >
-                      <Wifi className="w-4 h-4 mr-2" />
-                      اتصال WhatsApp
-                    </Button>
-                  ) : (
-                    <Button 
-                      onClick={() => disconnectMutation.mutate()}
-                      disabled={disconnectMutation.isPending}
-                      variant="destructive"
-                      data-testid="button-whatsapp-disconnect"
-                    >
-                      <WifiOff className="w-4 h-4 mr-2" />
-                      قطع الاتصال
-                    </Button>
-                  )}
-                </div>
-
-                {/* QR Code Section */}
-                {status.qrCode && qrCodeVisible && (
-                  <Alert>
-                    <QrCode className="h-4 w-4" />
-                    <AlertDescription>
-                      <div className="space-y-3">
-                        <p>امسح QR Code باستخدام WhatsApp على هاتفك:</p>
-                        <div className="bg-white p-4 rounded-lg inline-block">
-                          <img 
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(status.qrCode)}`}
-                            alt="WhatsApp QR Code"
-                            className="w-48 h-48"
-                          />
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          افتح WhatsApp على هاتفك ← الإعدادات ← الأجهزة المرتبطة ← ربط جهاز
-                        </p>
+        <TabsContent value="individual" className="mt-6">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Connection Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5" />
+                    حالة الاتصال
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {statusLoading ? (
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      جاري التحقق من الحالة...
+                    </div>
+                  ) : status ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${getStatusColor(status.state)}`}></div>
+                        <Badge variant={status.isConnected ? "default" : "secondary"}>
+                          {status.isConnected ? (
+                            <>
+                              <Wifi className="w-4 h-4 mr-1" />
+                              متصل
+                            </>
+                          ) : (
+                            <>
+                              <WifiOff className="w-4 h-4 mr-1" />
+                              غير متصل
+                            </>
+                          )}
+                        </Badge>
+                        <span className="text-sm text-gray-600">
+                          الحالة: {status.state}
+                        </span>
                       </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            ) : (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  فشل في الحصول على حالة الاتصال
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Messages Statistics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5" />
-              إحصائيات الرسائل
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div className="p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{sentMessages}</div>
-                <div className="text-sm text-gray-600">تم الإرسال</div>
-              </div>
-              <div className="p-4 bg-yellow-50 rounded-lg">
-                <div className="text-2xl font-bold text-yellow-600">{pendingMessages}</div>
-                <div className="text-sm text-gray-600">في الانتظار</div>
-              </div>
-              <div className="p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{failedMessages}</div>
-                <div className="text-sm text-gray-600">فشل</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Messages Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5" />
-              الرسائل المحفوظة ({messages.length})
-            </div>
-            <div className="flex gap-2">
-              {status?.isConnected && pendingMessages > 0 && (
-                <Button
-                  size="sm"
-                  onClick={() => sendAllMessagesMutation.mutate()}
-                  disabled={sendAllMessagesMutation.isPending}
-                  className="bg-green-600 hover:bg-green-700"
-                  data-testid="button-send-all"
-                >
-                  <Send className="w-4 h-4 mr-1" />
-                  إرسال الكل ({pendingMessages})
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => exportMessages('json')}
-                data-testid="button-export-json"
-              >
-                <Download className="w-4 h-4 mr-1" />
-                تصدير JSON
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => exportMessages('csv')}
-                data-testid="button-export-csv"
-              >
-                <Download className="w-4 h-4 mr-1" />
-                تصدير CSV
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => clearMessagesMutation.mutate()}
-                disabled={clearMessagesMutation.isPending || messages.length === 0}
-                data-testid="button-clear-messages"
-              >
-                <Trash2 className="w-4 h-4 mr-1" />
-                حذف الكل
-              </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {messages.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              لا توجد رسائل محفوظة
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className="p-4 border rounded-lg bg-gray-50"
-                  data-testid={`message-${message.id}`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        {getStatusIcon(message.status)}
-                        <span className="font-medium">{message.studentName || 'غير محدد'}</span>
-                        <span className="text-sm text-gray-500">{message.to}</span>
-                        {message.grade && (
-                          <Badge variant="outline">الدرجة: {message.grade}</Badge>
+                      <div className="flex gap-2">
+                        {!status.isConnected ? (
+                          <Button 
+                            onClick={() => connectMutation.mutate()}
+                            disabled={connectMutation.isPending}
+                            className="bg-green-600 hover:bg-green-700"
+                            data-testid="button-whatsapp-connect"
+                          >
+                            <Wifi className="w-4 h-4 mr-2" />
+                            اتصال WhatsApp
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={() => disconnectMutation.mutate()}
+                            disabled={disconnectMutation.isPending}
+                            variant="destructive"
+                            data-testid="button-whatsapp-disconnect"
+                          >
+                            <WifiOff className="w-4 h-4 mr-2" />
+                            قطع الاتصال
+                          </Button>
                         )}
                       </div>
-                      <p className="text-sm text-gray-700 mb-2 line-clamp-2">
-                        {message.message}
-                      </p>
-                      <div className="text-xs text-gray-500">
-                        {new Date(message.timestamp).toLocaleString('ar-EG')}
-                      </div>
+
+                      {/* QR Code Section */}
+                      {status.qrCode && qrCodeVisible && (
+                        <Alert>
+                          <QrCode className="h-4 w-4" />
+                          <AlertDescription>
+                            <div className="space-y-3">
+                              <p>امسح QR Code باستخدام WhatsApp على هاتفك:</p>
+                              <div className="bg-white p-4 rounded-lg inline-block">
+                                <img 
+                                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(status.qrCode)}`}
+                                  alt="WhatsApp QR Code"
+                                  className="w-48 h-48"
+                                />
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                افتح WhatsApp على هاتفك ← الإعدادات ← الأجهزة المرتبطة ← ربط جهاز
+                              </p>
+                            </div>
+                          </AlertDescription>
+                        </Alert>
+                      )}
                     </div>
-                    {/* Individual Send Button */}
-                    {message.status === 'pending' && status?.isConnected && (
-                      <div className="mr-4">
-                        <Button
-                          size="sm"
-                          onClick={() => sendMessageMutation.mutate(message.id)}
-                          disabled={sendMessageMutation.isPending}
-                          className="bg-blue-600 hover:bg-blue-700"
-                          data-testid={`button-send-${message.id}`}
-                        >
-                          <Send className="w-4 h-4 mr-1" />
-                          إرسال
-                        </Button>
-                      </div>
-                    )}
+                  ) : (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        فشل في الحصول على حالة الاتصال
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Messages Statistics */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5" />
+                    إحصائيات الرسائل
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">{sentMessages}</div>
+                      <div className="text-sm text-gray-600">تم الإرسال</div>
+                    </div>
+                    <div className="p-4 bg-yellow-50 rounded-lg">
+                      <div className="text-2xl font-bold text-yellow-600">{pendingMessages}</div>
+                      <div className="text-sm text-gray-600">في الانتظار</div>
+                    </div>
+                    <div className="p-4 bg-red-50 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600">{failedMessages}</div>
+                      <div className="text-sm text-gray-600">فشل</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                </CardContent>
+              </Card>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {/* Messages Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5" />
+                    الرسائل المحفوظة ({messages.length})
+                  </div>
+                  <div className="flex gap-2">
+                    {status?.isConnected && pendingMessages > 0 && (
+                      <Button
+                        size="sm"
+                        onClick={() => sendAllMessagesMutation.mutate()}
+                        disabled={sendAllMessagesMutation.isPending}
+                        className="bg-green-600 hover:bg-green-700"
+                        data-testid="button-send-all"
+                      >
+                        <Send className="w-4 h-4 mr-1" />
+                        إرسال الكل ({pendingMessages})
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportMessages('json')}
+                      data-testid="button-export-json"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      تصدير JSON
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportMessages('csv')}
+                      data-testid="button-export-csv"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      تصدير CSV
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => clearMessagesMutation.mutate()}
+                      disabled={clearMessagesMutation.isPending || messages.length === 0}
+                      data-testid="button-clear-messages"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      حذف الكل
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {messages.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    لا توجد رسائل محفوظة
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className="p-4 border rounded-lg bg-gray-50"
+                        data-testid={`message-${message.id}`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              {getStatusIcon(message.status)}
+                              <span className="font-medium">{message.studentName || 'غير محدد'}</span>
+                              <span className="text-sm text-gray-500">{message.to}</span>
+                              {message.grade && (
+                                <Badge variant="outline">الدرجة: {message.grade}</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-700 mb-2 line-clamp-2">
+                              {message.message}
+                            </p>
+                            <div className="text-xs text-gray-500">
+                              {new Date(message.timestamp).toLocaleString('ar-EG')}
+                            </div>
+                          </div>
+                          {/* Individual Send Button */}
+                          {message.status === 'pending' && status?.isConnected && (
+                            <div className="mr-4">
+                              <Button
+                                size="sm"
+                                onClick={() => sendMessageMutation.mutate(message.id)}
+                                disabled={sendMessageMutation.isPending}
+                                className="bg-blue-600 hover:bg-blue-700"
+                                data-testid={`button-send-${message.id}`}
+                              >
+                                <Send className="w-4 h-4 mr-1" />
+                                إرسال
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="groups" className="mt-6">
+          <GroupManagement />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

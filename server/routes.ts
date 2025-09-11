@@ -442,6 +442,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Group messaging routes
+  app.get("/api/whatsapp/groups", async (req, res) => {
+    try {
+      const groups = await whatsappService.getGroups();
+      res.json(groups);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get groups" });
+    }
+  });
+
+  app.post("/api/whatsapp/send-group-message", async (req, res) => {
+    try {
+      const { groupId, message, mentionAll, groupName } = req.body;
+      
+      if (!groupId || !message) {
+        return res.status(400).json({ message: "Group ID and message are required" });
+      }
+
+      const messageId = await whatsappService.sendGroupMessage(
+        groupId, 
+        message, 
+        mentionAll || false,
+        groupName
+      );
+      
+      res.json({ messageId, message: "Group message queued successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send group message" });
+    }
+  });
+
+  app.post("/api/whatsapp/mention-all", async (req, res) => {
+    try {
+      const { groupId, message, groupName } = req.body;
+      
+      if (!groupId || !message) {
+        return res.status(400).json({ message: "Group ID and message are required" });
+      }
+
+      const messageId = await whatsappService.mentionAllInGroup(groupId, message, groupName);
+      
+      res.json({ messageId, message: "Mention all message queued successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send mention all message" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
