@@ -116,6 +116,9 @@ class WhatsAppService {
           this.isConnected = true;
           this.connectionState = 'connected';
           this.qrCode = null;
+          
+          // Send welcome message after connection
+          this.sendWelcomeMessage();
         }
 
         this.connectionState = connection || 'disconnected';
@@ -273,6 +276,34 @@ class WhatsAppService {
     }
 
     return { sent, failed, total: pendingMessages.length };
+  }
+
+  private async sendWelcomeMessage() {
+    if (!this.isConnected || !this.sock) {
+      return;
+    }
+
+    try {
+      // Get own phone number from WhatsApp session
+      const me = this.sock.user;
+      if (me?.id) {
+        const welcomeMessage = `🎉 أهلاً وسهلاً! 🎉
+
+مرحباً بك في نظام إدارة الطلاب والدرجات!
+
+🔹 تم ربط الواتس اب بنجاح
+🔹 سيتم إرسال نتائج الطلاب تلقائياً
+🔹 يمكنك الآن استقبال إشعارات الدرجات
+
+شكراً لاستخدام النظام! 📚✨`;
+
+        // Send to self (the connected WhatsApp number)
+        await this.sock.sendMessage(me.id, { text: welcomeMessage });
+        console.log('Welcome message sent successfully');
+      }
+    } catch (error) {
+      console.error('Error sending welcome message:', error);
+    }
   }
 
   clearMessages() {

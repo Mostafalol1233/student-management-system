@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Search, FileText, QrCode, Edit, Trash2, Download, User } from "lucide-react";
+import { Search, FileText, QrCode, Edit, Trash2, Download, User, Eye } from "lucide-react";
 import QRGenerator, { QRGeneratorRef } from "@/components/ui/qr-generator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -231,6 +232,15 @@ export default function StudentList() {
                             </div>
                           </DialogContent>
                         </Dialog>
+                        <Link href={`/student/${student.id}`}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            data-testid={`button-view-${student.id}`}
+                          >
+                            <Eye size={16} className="text-primary" />
+                          </Button>
+                        </Link>
                         <Button
                           size="sm"
                           variant="ghost"
