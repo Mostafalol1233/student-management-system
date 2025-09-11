@@ -1,49 +1,56 @@
 import { useEffect, useRef } from "react";
+import QRCode from "qrcode";
 
 interface QRGeneratorProps {
   value: string;
   size?: number;
 }
 
-declare global {
-  interface Window {
-    QRCode: any;
-  }
-}
-
 export default function QRGenerator({ value, size = 256 }: QRGeneratorProps) {
-  const qrRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (!window.QRCode) {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-      script.onload = () => generateQR();
-      document.head.appendChild(script);
-    } else {
+    if (canvasRef.current && value) {
       generateQR();
     }
   }, [value, size]);
 
-  const generateQR = () => {
-    if (qrRef.current && window.QRCode && value) {
-      qrRef.current.innerHTML = '';
-      window.QRCode.toCanvas(qrRef.current, value, {
+  const generateQR = async () => {
+    if (!canvasRef.current || !value) return;
+
+    try {
+      await QRCode.toCanvas(canvasRef.current, value, {
         width: size,
-        height: size,
         margin: 2,
         color: {
           dark: '#000000',
           light: '#FFFFFF'
         }
-      }, (error: any) => {
-        if (error) {
-          console.error('QR Code generation error:', error);
-          qrRef.current!.innerHTML = '<div class="text-center text-muted-foreground">QR Code Error</div>';
-        }
       });
+    } catch (error) {
+      console.error('QR Code generation error:', error);
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#f3f4f6';
+          ctx.fillRect(0, 0, size, size);
+          ctx.fillStyle = '#6b7280';
+          ctx.font = '16px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('QR Error', size / 2, size / 2);
+        }
+      }
     }
   };
 
-  return <div ref={qrRef} className="flex items-center justify-center" />;
+  return (
+    <div className="flex items-center justify-center">
+      <canvas 
+        ref={canvasRef} 
+        width={size} 
+        height={size}
+        className="rounded border"
+      />
+    </div>
+  );
 }
