@@ -42,7 +42,9 @@ export default function StudentList() {
   const filteredStudents = students.filter(student =>
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.code.includes(searchTerm) ||
-    student.guardianPhone.includes(searchTerm)
+    student.guardianPhone.includes(searchTerm) ||
+    (student.guardianPhone2 && student.guardianPhone2.includes(searchTerm)) ||
+    (student.address && student.address.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const getInitials = (name: string) => {
@@ -99,6 +101,7 @@ export default function StudentList() {
                   <TableHead>Student</TableHead>
                   <TableHead>Code</TableHead>
                   <TableHead>Guardian Phone</TableHead>
+                  <TableHead>Address</TableHead>
                   <TableHead>Grade</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
@@ -130,7 +133,19 @@ export default function StudentList() {
                       </code>
                     </TableCell>
                     <TableCell className="text-sm" data-testid={`text-guardian-phone-${student.id}`}>
-                      {student.guardianPhone}
+                      <div>
+                        {student.guardianPhone}
+                        {student.guardianPhone2 && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {student.guardianPhone2}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm" data-testid={`text-student-address-${student.id}`}>
+                      {student.address || (
+                        <span className="text-muted-foreground italic">Not provided</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm" data-testid={`text-student-grade-${student.id}`}>
                       {student.gradeLevel}-{student.section}
