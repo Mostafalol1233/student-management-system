@@ -4,8 +4,12 @@ node_modules
 auth_info_baileys/
 data/whatsapp-messages.json
 
-# Local data files
+# Local data files (CRITICAL - contains sensitive WhatsApp messages)
 data/
+*.json
+!package*.json
+!tsconfig*.json
+!components.json
 dist
 .DS_Store
 server/public

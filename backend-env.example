@@ -1,0 +1,12 @@
+# Backend Environment Variables for Pterodactyl
+NODE_ENV=production
+PORT=3000
+SESSION_SECRET=your-very-long-and-random-secret-key-at-least-32-characters
+FRONTEND_URL=https://your-vercel-app.vercel.app
+VERCEL_PROJECT_NAME=your-project-name
+
+# Database (if using external database)
+# DATABASE_URL=postgresql://username:password@host:port/database
+
+# WhatsApp Configuration (files will be created automatically)
+# Note: auth_info_baileys directory must exist but be empty initially

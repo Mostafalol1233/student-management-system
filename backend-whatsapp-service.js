@@ -1,0 +1,423 @@
+import makeWASocket, { 
+  DisconnectReason, 
+  useMultiFileAuthState, 
+  ConnectionState,
+  WAMessage
+} from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
+import QRCode from 'qrcode-terminal';
+import P from 'pino';
+import fs from 'fs';
+import path from 'path';
+
+// Logger configuration
+const logger = P({ level: 'silent' });
+
+// Message storage interface
+interface StoredMessage {
+  id: string;
+  to: string;
+  message: string;
+  timestamp: string;
+  status: 'pending' | 'sent' | 'failed';
+  studentName?: string;
+  grade?: string;
+  isGroupMessage?: boolean;
+  groupId?: string;
+  groupName?: string;
+}
+
+interface GroupInfo {
+  id: string;
+  name: string;
+  participantsCount: number;
+  lastMessageTime?: string;
+}
+
+class WhatsAppService {
+  private sock: any = null;
+  private isConnected = false;
+  private qrCode: string | null = null;
+  private connectionState: string = 'disconnected';
+  private messagesFile = path.join(process.cwd(), 'data', 'whatsapp-messages.json');
+
+  constructor() {
+    this.ensureDataDirectory();
+  }
+
+  private ensureDataDirectory() {
+    const dataDir = path.join(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Initialize messages file if it doesn't exist
+    if (!fs.existsSync(this.messagesFile)) {
+      fs.writeFileSync(this.messagesFile, JSON.stringify([], null, 2));
+    }
+  }
+
+  private saveMessage(message: StoredMessage) {
+    try {
+      const messages = this.getStoredMessages();
+      messages.push(message);
+      fs.writeFileSync(this.messagesFile, JSON.stringify(messages, null, 2));
+    } catch (error) {
+      console.error('Error saving message:', error);
+    }
+  }
+
+  getStoredMessages(): StoredMessage[] {
+    try {
+      const data = fs.readFileSync(this.messagesFile, 'utf8');
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Error reading stored messages:', error);
+      return [];
+    }
+  }
+
+  updateMessageStatus(messageId: string, status: 'sent' | 'failed') {
+    try {
+      const messages = this.getStoredMessages();
+      const messageIndex = messages.findIndex(m => m.id === messageId);
+      if (messageIndex !== -1) {
+        messages[messageIndex].status = status;
+        fs.writeFileSync(this.messagesFile, JSON.stringify(messages, null, 2));
+      }
+    } catch (error) {
+      console.error('Error updating message status:', error);
+    }
+  }
+
+  async connect(): Promise<void> {
+    try {
+      const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+      
+      this.sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false,
+        logger,
+        browser: ['Student Grading System', 'Desktop', '1.0.0']
+      });
+
+      this.sock.ev.on('connection.update', (update: any) => {
+        const { connection, lastDisconnect, qr } = update;
+        
+        if (qr) {
+          this.qrCode = qr;
+          console.log('QR Code updated');
+          // Generate QR code for terminal (optional)
+          QRCode.generate(qr, { small: true });
+        }
+
+        if (connection === 'close') {
+          const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+          console.log('Connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
+          
+          this.isConnected = false;
+          this.connectionState = 'disconnected';
+          
+          if (shouldReconnect) {
+            this.connect();
+          }
+        } else if (connection === 'open') {
+          console.log('WhatsApp connection opened successfully');
+          this.isConnected = true;
+          this.connectionState = 'connected';
+          this.qrCode = null;
+          
+          // Send welcome message after connection
+          this.sendWelcomeMessage();
+        }
+
+        this.connectionState = connection || 'disconnected';
+      });
+
+      this.sock.ev.on('creds.update', saveCreds);
+      
+    } catch (error) {
+      console.error('Error connecting to WhatsApp:', error);
+      this.connectionState = 'error';
+    }
+  }
+
+  getConnectionStatus() {
+    return {
+      isConnected: this.isConnected,
+      state: this.connectionState,
+      qrCode: this.qrCode
+    };
+  }
+
+  async sendMessage(phoneNumber: string, message: string, studentName?: string, grade?: string): Promise<string> {
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store message locally first
+    const storedMessage: StoredMessage = {
+      id: messageId,
+      to: phoneNumber,
+      message,
+      timestamp: new Date().toISOString(),
+      status: 'pending',
+      studentName,
+      grade
+    };
+    
+    this.saveMessage(storedMessage);
+
+    if (!this.isConnected || !this.sock) {
+      console.log('WhatsApp not connected, message saved for later');
+      return messageId;
+    }
+
+    try {
+      // Clean phone number (remove spaces, dashes, etc.)
+      const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
+      const jid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+      
+      await this.sock.sendMessage(jid, { text: message });
+      console.log(`Message sent to ${phoneNumber}: ${message}`);
+      
+      this.updateMessageStatus(messageId, 'sent');
+      return messageId;
+    } catch (error) {
+      console.error('Error sending message:', error);
+      this.updateMessageStatus(messageId, 'failed');
+      throw error;
+    }
+  }
+
+  async sendGradeMessage(studentName: string, phoneNumber: string, grade: string, subject: string = 'الامتحان', notes?: string) {
+    let message = `📊 نتيجة ${subject}
+
+👤 اسم الطالب: ${studentName}
+📝 الدرجة: ${grade}
+📅 التاريخ: ${new Date().toLocaleDateString('ar-EG')}`;
+
+    if (notes) {
+      message += `\n\n💬 ملاحظات المعلم:\n${notes}`;
+    }
+
+    message += `\n\n📞 للاستفسار يرجى التواصل مع إدارة المدرسة
+
+🌟 نتمنى للطالب دوام التفوق والنجاح`;
+
+    return await this.sendMessage(phoneNumber, message, studentName, grade);
+  }
+
+  // Get available groups
+  async getGroups(): Promise<GroupInfo[]> {
+    if (!this.isConnected || !this.sock) {
+      return [];
+    }
+
+    try {
+      // Get all chats from WhatsApp
+      const chats = await this.sock.groupFetchAllParticipating();
+      const groups: GroupInfo[] = [];
+
+      for (const [groupId, group] of Object.entries(chats)) {
+        if (group && typeof group === 'object' && 'subject' in group && 'participants' in group) {
+          const groupData = group as any;
+          groups.push({
+            id: groupId,
+            name: groupData.subject || 'Unknown Group',
+            participantsCount: Array.isArray(groupData.participants) ? groupData.participants.length : 0,
+            lastMessageTime: new Date().toISOString()
+          });
+        }
+      }
+
+      return groups;
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      return [];
+    }
+  }
+
+  // Send message to a group
+  async sendGroupMessage(groupId: string, message: string, mentionAll: boolean = false, groupName?: string): Promise<string> {
+    const messageId = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store message locally first
+    const storedMessage: StoredMessage = {
+      id: messageId,
+      to: groupId,
+      message,
+      timestamp: new Date().toISOString(),
+      status: 'pending',
+      isGroupMessage: true,
+      groupId,
+      groupName
+    };
+    
+    this.saveMessage(storedMessage);
+
+    if (!this.isConnected || !this.sock) {
+      console.log('WhatsApp not connected, group message saved for later');
+      return messageId;
+    }
+
+    try {
+      let messageContent: any = { text: message };
+      
+      // If mentionAll is true, get all group participants and mention them
+      if (mentionAll) {
+        const groupMetadata = await this.sock.groupMetadata(groupId);
+        const participants = groupMetadata.participants.map((p: any) => p.id);
+        
+        messageContent = {
+          text: `@${participants.map(() => '').join(' @')}\n\n${message}`,
+          mentions: participants
+        };
+      }
+      
+      await this.sock.sendMessage(groupId, messageContent);
+      console.log(`Group message sent to ${groupName || groupId}: ${message}`);
+      
+      this.updateMessageStatus(messageId, 'sent');
+      return messageId;
+    } catch (error) {
+      console.error('Error sending group message:', error);
+      this.updateMessageStatus(messageId, 'failed');
+      throw error;
+    }
+  }
+
+  // Send mention all message to group
+  async mentionAllInGroup(groupId: string, message: string, groupName?: string): Promise<string> {
+    return await this.sendGroupMessage(groupId, message, true, groupName);
+  }
+
+  downloadMessagesAsJSON(): Buffer {
+    const messages = this.getStoredMessages();
+    return Buffer.from(JSON.stringify(messages, null, 2));
+  }
+
+  downloadMessagesAsCSV(): Buffer {
+    const messages = this.getStoredMessages();
+    const headers = ['ID', 'Student Name', 'Phone', 'Grade', 'Message', 'Status', 'Timestamp'];
+    
+    let csvContent = headers.join(',') + '\n';
+    
+    messages.forEach(msg => {
+      const row = [
+        msg.id,
+        msg.studentName || '',
+        msg.to,
+        msg.grade || '',
+        `"${msg.message.replace(/"/g, '""')}"`,
+        msg.status,
+        msg.timestamp
+      ];
+      csvContent += row.join(',') + '\n';
+    });
+    
+    return Buffer.from(csvContent);
+  }
+
+  async sendStoredMessage(messageId: string): Promise<boolean> {
+    const messages = this.getStoredMessages();
+    const message = messages.find(m => m.id === messageId);
+    
+    if (!message || message.status !== 'pending') {
+      return false;
+    }
+
+    if (!this.isConnected || !this.sock) {
+      return false;
+    }
+
+    try {
+      // Clean phone number (remove spaces, dashes, etc.)
+      const cleanPhone = message.to.replace(/[^\d+]/g, '');
+      const jid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+      
+      await this.sock.sendMessage(jid, { text: message.message });
+      console.log(`Message sent to ${message.to}: ${message.message}`);
+      
+      this.updateMessageStatus(messageId, 'sent');
+      return true;
+    } catch (error) {
+      console.error('Error sending stored message:', error);
+      this.updateMessageStatus(messageId, 'failed');
+      return false;
+    }
+  }
+
+  async sendAllPendingMessages(): Promise<{sent: number, failed: number, total: number}> {
+    const messages = this.getStoredMessages();
+    const pendingMessages = messages.filter(m => m.status === 'pending');
+    
+    let sent = 0;
+    let failed = 0;
+
+    if (!this.isConnected || !this.sock) {
+      return { sent: 0, failed: pendingMessages.length, total: pendingMessages.length };
+    }
+
+    for (const message of pendingMessages) {
+      try {
+        const success = await this.sendStoredMessage(message.id);
+        if (success) {
+          sent++;
+        } else {
+          failed++;
+        }
+        // Add a small delay between messages to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        failed++;
+        console.error('Error sending message in batch:', error);
+      }
+    }
+
+    return { sent, failed, total: pendingMessages.length };
+  }
+
+  private async sendWelcomeMessage() {
+    if (!this.isConnected || !this.sock) {
+      return;
+    }
+
+    try {
+      // Get own phone number from WhatsApp session
+      const me = this.sock.user;
+      if (me?.id) {
+        const welcomeMessage = `🎉 أهلاً وسهلاً! 🎉
+
+مرحباً بك في نظام إدارة الطلاب والدرجات!
+
+🔹 تم ربط الواتس اب بنجاح
+🔹 سيتم إرسال نتائج الطلاب تلقائياً
+🔹 يمكنك الآن استقبال إشعارات الدرجات
+
+شكراً لاستخدام النظام! 📚✨`;
+
+        // Send to self (the connected WhatsApp number)
+        await this.sock.sendMessage(me.id, { text: welcomeMessage });
+        console.log('Welcome message sent successfully');
+      }
+    } catch (error) {
+      console.error('Error sending welcome message:', error);
+    }
+  }
+
+  clearMessages() {
+    fs.writeFileSync(this.messagesFile, JSON.stringify([], null, 2));
+  }
+
+  disconnect() {
+    if (this.sock) {
+      this.sock.end();
+      this.sock = null;
+    }
+    this.isConnected = false;
+    this.connectionState = 'disconnected';
+    this.qrCode = null;
+  }
+}
+
+// Export singleton instance
+export const whatsappService = new WhatsAppService();
