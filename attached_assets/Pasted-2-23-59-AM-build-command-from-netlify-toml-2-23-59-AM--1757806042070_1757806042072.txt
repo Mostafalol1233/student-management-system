@@ -1,0 +1,52 @@
+2:23:59 AM: build.command from netlify.toml                               
+2:23:59 AM: ────────────────────────────────────────────────────────────────
+2:23:59 AM: ​
+2:23:59 AM: $ npm run build
+2:23:59 AM: > student-management-frontend@1.0.0 build
+2:23:59 AM: > vite build
+2:24:00 AM: vite v5.4.20 building for production...
+2:24:00 AM: transforming...
+2:24:01 AM: Failed during stage 'building site': Build script returned non-zero exit code: 2 (https://ntl.fyi/exit-code-2)
+2:24:01 AM: ✓ 77 modules transformed.
+2:24:01 AM: x Build failed in 962ms
+2:24:01 AM: error during build:
+2:24:01 AM: [vite]: Rollup failed to resolve import "qrcode" from "/opt/build/repo/client/src/components/ui/qr-generator.tsx".
+2:24:01 AM: This is most likely unintended because it can break your application at runtime.
+2:24:01 AM: If you do want to externalize this module explicitly add it to
+2:24:01 AM: `build.rollupOptions.external`
+2:24:01 AM:     at viteWarn (file:///opt/build/repo/client/node_modules/vite/dist/node/chunks/dep-D_zLpgQd.js:65854:17)
+2:24:01 AM:     at onwarn (file:///opt/build/repo/client/node_modules/@vitejs/plugin-react/dist/index.js:90:7)
+2:24:01 AM:     at onRollupWarning (file:///opt/build/repo/client/node_modules/vite/dist/node/chunks/dep-D_zLpgQd.js:65884:5)
+2:24:01 AM:     at onwarn (file:///opt/build/repo/client/node_modules/vite/dist/node/chunks/dep-D_zLpgQd.js:65549:7)
+2:24:01 AM:     at file:///opt/build/repo/client/node_modules/rollup/dist/es/shared/node-entry.js:20925:13
+2:24:01 AM:     at Object.logger [as onLog] (file:///opt/build/repo/client/node_modules/rollup/dist/es/shared/node-entry.js:22797:9)
+2:24:01 AM:     at ModuleLoader.handleInvalidResolvedId (file:///opt/build/repo/client/node_modules/rollup/dist/es/shared/node-entry.js:21541:26)
+2:24:01 AM:     at file:///opt/build/repo/client/node_modules/rollup/dist/es/shared/node-entry.js:21499:26
+2:24:01 AM: ​
+2:24:01 AM: "build.command" failed                                        
+2:24:01 AM: ────────────────────────────────────────────────────────────────
+2:24:01 AM: ​
+2:24:01 AM:   Error message
+2:24:01 AM:   Command failed with exit code 1: npm run build (https://ntl.fyi/exit-code-1)
+2:24:01 AM: ​
+2:24:01 AM:   Error location
+2:24:01 AM:   In build.command from netlify.toml:
+2:24:01 AM:   npm run build
+2:24:01 AM: ​
+2:24:01 AM:   Resolved config
+2:24:01 AM:   build:
+2:24:01 AM:     base: /opt/build/repo/client
+2:24:01 AM:     command: npm run build
+2:24:01 AM:     commandOrigin: config
+2:24:01 AM:     environment:
+2:24:01 AM:       - VITE_API_URL
+2:24:01 AM:     publish: /opt/build/repo/client/dist
+2:24:01 AM:     publishOrigin: config
+2:24:01 AM:   redirects:
+2:24:01 AM:     - from: /*
+      status: 200
+      to: /index.html
+  redirectsOrigin: config
+2:24:01 AM: Build failed due to a user error: Build script returned non-zero exit code: 2
+2:24:01 AM: Failing build: Failed to build site
+2:24:02 AM: Finished processing build request in 44.123s
