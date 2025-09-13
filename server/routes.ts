@@ -519,7 +519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             student.guardianPhone,
             `${grade.score}/${grade.totalMarks} (${grade.grade})`,
             grade.subject,
-            grade.notes
+            grade.notes || undefined
           );
           
           // Mark as sent
