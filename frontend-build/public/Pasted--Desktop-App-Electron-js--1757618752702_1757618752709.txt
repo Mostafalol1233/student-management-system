@@ -1,0 +1,125 @@
+📋 مواصفات مشروع: نظام حضور ودرجات الطلاب (Desktop App)
+🛠️ التقنية المطلوبة
+
+Electron.js: لتشغيل التطبيق كديسكتوب (Windows / Linux / Mac).
+
+Node.js + Express: لإدارة الـ API الداخلي.
+
+SQLite: قاعدة بيانات محلية (ملف واحد .db).
+
+Libraries:
+
+sqlite3 أو better-sqlite3 لإدارة قاعدة البيانات.
+
+qrcode لتوليد أكواد QR.
+
+html5-qrcode أو qrcode-reader لمسح الأكواد.
+
+@whiskeysockets/baileys لإرسال رسائل واتساب.
+
+electron-store أو dotenv لحفظ الإعدادات.
+
+📂 هيكل المشروع
+student-attendance-app/
+│── package.json
+│── main.js                # ملف تشغيل Electron
+│── /db
+│     └── database.sqlite   # قاعدة البيانات
+│── /src
+│     ├── renderer/         # واجهة المستخدم (HTML/CSS/JS أو React)
+│     ├── backend/          # API (Node.js + Express)
+│     ├── components/       # عناصر مثل QR Scanner
+│── /assets
+│     └── qr-codes/         # صور QR المطبوعة للطلاب
+
+✨ الخصائص الأساسية
+1. تسجيل الطلاب
+
+إدخال:
+
+الاسم الكامل.
+
+رقم ولي الأمر (واتساب).
+
+النظام يولد:
+
+كود 3 أرقام فريد.
+
+QR Code ثابت (يُحفظ في /assets/qr-codes/).
+
+يتخزن في قاعدة البيانات:
+
+id, name, guardianPhone, code, qrPath.
+
+2. إدارة الحصص
+
+إمكانية إنشاء "حصة جديدة" بتاريخ ووقت.
+
+عند بدء الحصة → تفتح شاشة الحضور:
+
+سكان QR بكاميرا اللابتوب/الموبايل.
+
+أو إدخال الكود اليدوي (3 أرقام).
+
+الطالب يتسجل حاضر في الحصة المحددة.
+
+3. الحضور
+
+لكل طالب يتسجل:
+
+studentId, sessionId, status (حاضر/غائب), time.
+
+لو الحصة خلصت → ممكن تطلع تقرير الحضور.
+
+4. الدرجات
+
+واجهة إدخال الدرجات:
+
+تختار الطالب → تدخل الدرجة للامتحان.
+
+تتحفظ في جدول grades.
+
+إمكانية استخراج تقرير بالدرجات.
+
+5. الإشعارات (واتساب)
+
+باستخدام Baileys:
+
+بعد تسجيل الحضور:
+
+إرسال رسالة لولي الأمر (حضر/غاب).
+
+بعد إدخال الدرجات:
+
+إرسال نتيجة للطالب/ولي الأمر.
+
+صيغة الرسائل:
+
+✅ "ابنك [اسم الطالب] حضر حصة [التاريخ]."
+
+❌ "ابنك [اسم الطالب] لم يحضر حصة [التاريخ]."
+
+📝 "درجة ابنك [اسم الطالب] في امتحان [المادة] هي [xx]/100."
+
+🛡️ الأمان
+
+قاعدة البيانات محلية (SQLite) → مش مرفوعة على الإنترنت.
+
+QR Code يحتوي معرّف + توقيع (عشان محدش يزوّر).
+
+يمكن تشفير قاعدة البيانات لاحقًا بكلمة مرور.
+
+🚀 خطوات البداية (لـ Cursor / Replit / VS Code)
+
+أنشئ مشروع جديد باسم: student-attendance-app.
+
+انسخ الوصف (المواصفات) ده وحطه في AI Assistant (Cursor أو Replit).
+
+اطلب منه:
+
+Build me an Electron.js desktop app with Node.js backend and SQLite database 
+following this specification. 
+Start with: 
+- Student registration + QR generation
+- Session creation + attendance recording
+- Save everything in SQLite
