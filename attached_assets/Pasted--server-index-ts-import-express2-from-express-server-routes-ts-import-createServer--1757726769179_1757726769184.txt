@@ -1,0 +1,1183 @@
+// server/index.ts
+import express2 from "express";
+
+// server/routes.ts
+import { createServer } from "http";
+
+// server/storage.ts
+import { randomUUID } from "crypto";
+var MemStorage = class {
+  students;
+  sessions;
+  attendance;
+  grades;
+  constructor() {
+    this.students = /* @__PURE__ */ new Map();
+    this.sessions = /* @__PURE__ */ new Map();
+    this.attendance = /* @__PURE__ */ new Map();
+    this.grades = /* @__PURE__ */ new Map();
+  }
+  // Generate unique 3-digit code
+  generateStudentCode() {
+    let code;
+    do {
+      code = Math.floor(100 + Math.random() * 900).toString();
+    } while (Array.from(this.students.values()).some((student) => student.code === code));
+    return code;
+  }
+  // Calculate letter grade
+  calculateLetterGrade(score, totalMarks) {
+    const percentage = score / totalMarks * 100;
+    if (percentage >= 90) return "A";
+    if (percentage >= 80) return "B";
+    if (percentage >= 70) return "C";
+    if (percentage >= 60) return "D";
+    return "F";
+  }
+  // Student operations
+  async getStudent(id) {
+    return this.students.get(id);
+  }
+  async getStudentByCode(code) {
+    return Array.from(this.students.values()).find((student) => student.code === code);
+  }
+  async getAllStudents() {
+    return Array.from(this.students.values());
+  }
+  async createStudent(insertStudent) {
+    const id = randomUUID();
+    const code = this.generateStudentCode();
+    const student = {
+      ...insertStudent,
+      id,
+      code,
+      guardianPhone2: insertStudent.guardianPhone2 || null,
+      address: insertStudent.address || null,
+      qrPath: null,
+      status: "active",
+      createdAt: /* @__PURE__ */ new Date()
+    };
+    this.students.set(id, student);
+    return student;
+  }
+  async updateStudent(id, updates) {
+    const student = this.students.get(id);
+    if (!student) throw new Error("Student not found");
+    const updatedStudent = { ...student, ...updates };
+    this.students.set(id, updatedStudent);
+    return updatedStudent;
+  }
+  async deleteStudent(id) {
+    return this.students.delete(id);
+  }
+  // Session operations
+  async getSession(id) {
+    return this.sessions.get(id);
+  }
+  async getAllSessions() {
+    return Array.from(this.sessions.values());
+  }
+  async getActiveSession() {
+    return Array.from(this.sessions.values()).find((session) => session.status === "active");
+  }
+  async createSession(insertSession) {
+    const id = randomUUID();
+    const session = {
+      ...insertSession,
+      id,
+      status: "scheduled",
+      createdAt: /* @__PURE__ */ new Date()
+    };
+    this.sessions.set(id, session);
+    return session;
+  }
+  async updateSession(id, updates) {
+    const session = this.sessions.get(id);
+    if (!session) throw new Error("Session not found");
+    const updatedSession = { ...session, ...updates };
+    this.sessions.set(id, updatedSession);
+    return updatedSession;
+  }
+  // Attendance operations
+  async getAttendanceBySession(sessionId) {
+    return Array.from(this.attendance.values()).filter((att) => att.sessionId === sessionId);
+  }
+  async getAttendanceByStudent(studentId) {
+    return Array.from(this.attendance.values()).filter((att) => att.studentId === studentId);
+  }
+  async getAttendanceRecord(studentId, sessionId) {
+    return Array.from(this.attendance.values()).find(
+      (att) => att.studentId === studentId && att.sessionId === sessionId
+    );
+  }
+  async createAttendance(insertAttendance) {
+    const id = randomUUID();
+    const attendance2 = {
+      ...insertAttendance,
+      id,
+      timeRecorded: /* @__PURE__ */ new Date()
+    };
+    this.attendance.set(id, attendance2);
+    return attendance2;
+  }
+  // Grade operations
+  async getGradesByStudent(studentId) {
+    return Array.from(this.grades.values()).filter((grade) => grade.studentId === studentId);
+  }
+  async getAllGrades() {
+    return Array.from(this.grades.values());
+  }
+  async createGrade(insertGrade) {
+    const id = randomUUID();
+    const grade = {
+      ...insertGrade,
+      id,
+      notes: insertGrade.notes || null,
+      grade: this.calculateLetterGrade(insertGrade.score, insertGrade.totalMarks),
+      sentToParent: false,
+      createdAt: /* @__PURE__ */ new Date()
+    };
+    this.grades.set(id, grade);
+    return grade;
+  }
+  async updateGrade(id, updates) {
+    const grade = this.grades.get(id);
+    if (!grade) throw new Error("Grade not found");
+    const updatedGrade = {
+      ...grade,
+      ...updates,
+      grade: updates.score && updates.totalMarks ? this.calculateLetterGrade(updates.score, updates.totalMarks) : grade.grade
+    };
+    this.grades.set(id, updatedGrade);
+    return updatedGrade;
+  }
+  async deleteGrade(id) {
+    return this.grades.delete(id);
+  }
+};
+var storage = new MemStorage();
+
+// shared/schema.ts
+import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+var students = pgTable("students", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  guardianPhone: text("guardian_phone").notNull(),
+  guardianPhone2: text("guardian_phone2"),
+  address: text("address"),
+  code: text("code").notNull().unique(),
+  gradeLevel: text("grade_level").notNull(),
+  section: text("section").notNull(),
+  qrPath: text("qr_path"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var sessions = pgTable("sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  date: text("date").notNull(),
+  time: text("time").notNull(),
+  duration: integer("duration").notNull(),
+  status: text("status").notNull().default("scheduled"),
+  // scheduled, active, completed
+  createdAt: timestamp("created_at").defaultNow()
+});
+var attendance = pgTable("attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull().references(() => students.id),
+  sessionId: varchar("session_id").notNull().references(() => sessions.id),
+  status: text("status").notNull(),
+  // present, absent
+  timeRecorded: timestamp("time_recorded").defaultNow(),
+  scanMethod: text("scan_method").notNull()
+  // qr, manual
+});
+var grades = pgTable("grades", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull().references(() => students.id),
+  subject: text("subject").notNull(),
+  assessmentType: text("assessment_type").notNull(),
+  score: integer("score").notNull(),
+  totalMarks: integer("total_marks").notNull(),
+  grade: text("grade"),
+  notes: text("notes"),
+  // ملاحظات على درجة الطالب
+  sentToParent: boolean("sent_to_parent").default(false),
+  // هل تم إرسال النتيجة لولي الأمر
+  createdAt: timestamp("created_at").defaultNow()
+});
+var insertStudentSchema = createInsertSchema(students).omit({
+  id: true,
+  createdAt: true,
+  code: true,
+  qrPath: true,
+  status: true
+});
+var insertSessionSchema = createInsertSchema(sessions).omit({
+  id: true,
+  createdAt: true,
+  status: true
+});
+var insertAttendanceSchema = createInsertSchema(attendance).omit({
+  id: true,
+  timeRecorded: true
+});
+var insertGradeSchema = createInsertSchema(grades).omit({
+  id: true,
+  createdAt: true,
+  grade: true,
+  sentToParent: true
+});
+
+// server/routes.ts
+import { z } from "zod";
+import multer from "multer";
+
+// server/whatsapp-service.ts
+import makeWASocket, {
+  DisconnectReason,
+  useMultiFileAuthState
+} from "@whiskeysockets/baileys";
+import QRCode from "qrcode-terminal";
+import P from "pino";
+import fs from "fs";
+import path from "path";
+var logger = P({ level: "silent" });
+var WhatsAppService = class {
+  sock = null;
+  isConnected = false;
+  qrCode = null;
+  connectionState = "disconnected";
+  messagesFile = path.join(process.cwd(), "data", "whatsapp-messages.json");
+  constructor() {
+    this.ensureDataDirectory();
+  }
+  ensureDataDirectory() {
+    const dataDir = path.join(process.cwd(), "data");
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    if (!fs.existsSync(this.messagesFile)) {
+      fs.writeFileSync(this.messagesFile, JSON.stringify([], null, 2));
+    }
+  }
+  saveMessage(message) {
+    try {
+      const messages = this.getStoredMessages();
+      messages.push(message);
+      fs.writeFileSync(this.messagesFile, JSON.stringify(messages, null, 2));
+    } catch (error) {
+      console.error("Error saving message:", error);
+    }
+  }
+  getStoredMessages() {
+    try {
+      const data = fs.readFileSync(this.messagesFile, "utf8");
+      return JSON.parse(data);
+    } catch (error) {
+      console.error("Error reading stored messages:", error);
+      return [];
+    }
+  }
+  updateMessageStatus(messageId, status) {
+    try {
+      const messages = this.getStoredMessages();
+      const messageIndex = messages.findIndex((m) => m.id === messageId);
+      if (messageIndex !== -1) {
+        messages[messageIndex].status = status;
+        fs.writeFileSync(this.messagesFile, JSON.stringify(messages, null, 2));
+      }
+    } catch (error) {
+      console.error("Error updating message status:", error);
+    }
+  }
+  async connect() {
+    try {
+      const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
+      this.sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false,
+        logger,
+        browser: ["Student Grading System", "Desktop", "1.0.0"]
+      });
+      this.sock.ev.on("connection.update", (update) => {
+        const { connection, lastDisconnect, qr } = update;
+        if (qr) {
+          this.qrCode = qr;
+          console.log("QR Code updated");
+          QRCode.generate(qr, { small: true });
+        }
+        if (connection === "close") {
+          const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+          console.log("Connection closed due to ", lastDisconnect?.error, ", reconnecting ", shouldReconnect);
+          this.isConnected = false;
+          this.connectionState = "disconnected";
+          if (shouldReconnect) {
+            this.connect();
+          }
+        } else if (connection === "open") {
+          console.log("WhatsApp connection opened successfully");
+          this.isConnected = true;
+          this.connectionState = "connected";
+          this.qrCode = null;
+          this.sendWelcomeMessage();
+        }
+        this.connectionState = connection || "disconnected";
+      });
+      this.sock.ev.on("creds.update", saveCreds);
+    } catch (error) {
+      console.error("Error connecting to WhatsApp:", error);
+      this.connectionState = "error";
+    }
+  }
+  getConnectionStatus() {
+    return {
+      isConnected: this.isConnected,
+      state: this.connectionState,
+      qrCode: this.qrCode
+    };
+  }
+  async sendMessage(phoneNumber, message, studentName, grade) {
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const storedMessage = {
+      id: messageId,
+      to: phoneNumber,
+      message,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      status: "pending",
+      studentName,
+      grade
+    };
+    this.saveMessage(storedMessage);
+    if (!this.isConnected || !this.sock) {
+      console.log("WhatsApp not connected, message saved for later");
+      return messageId;
+    }
+    try {
+      const cleanPhone = phoneNumber.replace(/[^\d+]/g, "");
+      const jid = cleanPhone.includes("@") ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+      await this.sock.sendMessage(jid, { text: message });
+      console.log(`Message sent to ${phoneNumber}: ${message}`);
+      this.updateMessageStatus(messageId, "sent");
+      return messageId;
+    } catch (error) {
+      console.error("Error sending message:", error);
+      this.updateMessageStatus(messageId, "failed");
+      throw error;
+    }
+  }
+  async sendGradeMessage(studentName, phoneNumber, grade, subject = "\u0627\u0644\u0627\u0645\u062A\u062D\u0627\u0646", notes) {
+    let message = `\u{1F4CA} \u0646\u062A\u064A\u062C\u0629 ${subject}
+
+\u{1F464} \u0627\u0633\u0645 \u0627\u0644\u0637\u0627\u0644\u0628: ${studentName}
+\u{1F4DD} \u0627\u0644\u062F\u0631\u062C\u0629: ${grade}
+\u{1F4C5} \u0627\u0644\u062A\u0627\u0631\u064A\u062E: ${(/* @__PURE__ */ new Date()).toLocaleDateString("ar-EG")}`;
+    if (notes) {
+      message += `
+
+\u{1F4AC} \u0645\u0644\u0627\u062D\u0638\u0627\u062A \u0627\u0644\u0645\u0639\u0644\u0645:
+${notes}`;
+    }
+    message += `
+
+\u{1F4DE} \u0644\u0644\u0627\u0633\u062A\u0641\u0633\u0627\u0631 \u064A\u0631\u062C\u0649 \u0627\u0644\u062A\u0648\u0627\u0635\u0644 \u0645\u0639 \u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0645\u062F\u0631\u0633\u0629
+
+\u{1F31F} \u0646\u062A\u0645\u0646\u0649 \u0644\u0644\u0637\u0627\u0644\u0628 \u062F\u0648\u0627\u0645 \u0627\u0644\u062A\u0641\u0648\u0642 \u0648\u0627\u0644\u0646\u062C\u0627\u062D`;
+    return await this.sendMessage(phoneNumber, message, studentName, grade);
+  }
+  // Get available groups
+  async getGroups() {
+    if (!this.isConnected || !this.sock) {
+      return [];
+    }
+    try {
+      const chats = await this.sock.groupFetchAllParticipating();
+      const groups = [];
+      for (const [groupId, group] of Object.entries(chats)) {
+        if (group && typeof group === "object" && "subject" in group && "participants" in group) {
+          const groupData = group;
+          groups.push({
+            id: groupId,
+            name: groupData.subject || "Unknown Group",
+            participantsCount: Array.isArray(groupData.participants) ? groupData.participants.length : 0,
+            lastMessageTime: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+      }
+      return groups;
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+      return [];
+    }
+  }
+  // Send message to a group
+  async sendGroupMessage(groupId, message, mentionAll = false, groupName) {
+    const messageId = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const storedMessage = {
+      id: messageId,
+      to: groupId,
+      message,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      status: "pending",
+      isGroupMessage: true,
+      groupId,
+      groupName
+    };
+    this.saveMessage(storedMessage);
+    if (!this.isConnected || !this.sock) {
+      console.log("WhatsApp not connected, group message saved for later");
+      return messageId;
+    }
+    try {
+      let messageContent = { text: message };
+      if (mentionAll) {
+        const groupMetadata = await this.sock.groupMetadata(groupId);
+        const participants = groupMetadata.participants.map((p) => p.id);
+        messageContent = {
+          text: `@${participants.map(() => "").join(" @")}
+
+${message}`,
+          mentions: participants
+        };
+      }
+      await this.sock.sendMessage(groupId, messageContent);
+      console.log(`Group message sent to ${groupName || groupId}: ${message}`);
+      this.updateMessageStatus(messageId, "sent");
+      return messageId;
+    } catch (error) {
+      console.error("Error sending group message:", error);
+      this.updateMessageStatus(messageId, "failed");
+      throw error;
+    }
+  }
+  // Send mention all message to group
+  async mentionAllInGroup(groupId, message, groupName) {
+    return await this.sendGroupMessage(groupId, message, true, groupName);
+  }
+  downloadMessagesAsJSON() {
+    const messages = this.getStoredMessages();
+    return Buffer.from(JSON.stringify(messages, null, 2));
+  }
+  downloadMessagesAsCSV() {
+    const messages = this.getStoredMessages();
+    const headers = ["ID", "Student Name", "Phone", "Grade", "Message", "Status", "Timestamp"];
+    let csvContent = headers.join(",") + "\n";
+    messages.forEach((msg) => {
+      const row = [
+        msg.id,
+        msg.studentName || "",
+        msg.to,
+        msg.grade || "",
+        `"${msg.message.replace(/"/g, '""')}"`,
+        msg.status,
+        msg.timestamp
+      ];
+      csvContent += row.join(",") + "\n";
+    });
+    return Buffer.from(csvContent);
+  }
+  async sendStoredMessage(messageId) {
+    const messages = this.getStoredMessages();
+    const message = messages.find((m) => m.id === messageId);
+    if (!message || message.status !== "pending") {
+      return false;
+    }
+    if (!this.isConnected || !this.sock) {
+      return false;
+    }
+    try {
+      const cleanPhone = message.to.replace(/[^\d+]/g, "");
+      const jid = cleanPhone.includes("@") ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+      await this.sock.sendMessage(jid, { text: message.message });
+      console.log(`Message sent to ${message.to}: ${message.message}`);
+      this.updateMessageStatus(messageId, "sent");
+      return true;
+    } catch (error) {
+      console.error("Error sending stored message:", error);
+      this.updateMessageStatus(messageId, "failed");
+      return false;
+    }
+  }
+  async sendAllPendingMessages() {
+    const messages = this.getStoredMessages();
+    const pendingMessages = messages.filter((m) => m.status === "pending");
+    let sent = 0;
+    let failed = 0;
+    if (!this.isConnected || !this.sock) {
+      return { sent: 0, failed: pendingMessages.length, total: pendingMessages.length };
+    }
+    for (const message of pendingMessages) {
+      try {
+        const success = await this.sendStoredMessage(message.id);
+        if (success) {
+          sent++;
+        } else {
+          failed++;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1e3));
+      } catch (error) {
+        failed++;
+        console.error("Error sending message in batch:", error);
+      }
+    }
+    return { sent, failed, total: pendingMessages.length };
+  }
+  async sendWelcomeMessage() {
+    if (!this.isConnected || !this.sock) {
+      return;
+    }
+    try {
+      const me = this.sock.user;
+      if (me?.id) {
+        const welcomeMessage = `\u{1F389} \u0623\u0647\u0644\u0627\u064B \u0648\u0633\u0647\u0644\u0627\u064B! \u{1F389}
+
+\u0645\u0631\u062D\u0628\u0627\u064B \u0628\u0643 \u0641\u064A \u0646\u0638\u0627\u0645 \u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0637\u0644\u0627\u0628 \u0648\u0627\u0644\u062F\u0631\u062C\u0627\u062A!
+
+\u{1F539} \u062A\u0645 \u0631\u0628\u0637 \u0627\u0644\u0648\u0627\u062A\u0633 \u0627\u0628 \u0628\u0646\u062C\u0627\u062D
+\u{1F539} \u0633\u064A\u062A\u0645 \u0625\u0631\u0633\u0627\u0644 \u0646\u062A\u0627\u0626\u062C \u0627\u0644\u0637\u0644\u0627\u0628 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B
+\u{1F539} \u064A\u0645\u0643\u0646\u0643 \u0627\u0644\u0622\u0646 \u0627\u0633\u062A\u0642\u0628\u0627\u0644 \u0625\u0634\u0639\u0627\u0631\u0627\u062A \u0627\u0644\u062F\u0631\u062C\u0627\u062A
+
+\u0634\u0643\u0631\u0627\u064B \u0644\u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0627\u0644\u0646\u0638\u0627\u0645! \u{1F4DA}\u2728`;
+        await this.sock.sendMessage(me.id, { text: welcomeMessage });
+        console.log("Welcome message sent successfully");
+      }
+    } catch (error) {
+      console.error("Error sending welcome message:", error);
+    }
+  }
+  clearMessages() {
+    fs.writeFileSync(this.messagesFile, JSON.stringify([], null, 2));
+  }
+  disconnect() {
+    if (this.sock) {
+      this.sock.end();
+      this.sock = null;
+    }
+    this.isConnected = false;
+    this.connectionState = "disconnected";
+    this.qrCode = null;
+  }
+};
+var whatsappService = new WhatsAppService();
+
+// server/routes.ts
+var upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }
+  // 5MB limit
+});
+async function registerRoutes(app2) {
+  app2.get("/api/students", async (req, res) => {
+    try {
+      const students2 = await storage.getAllStudents();
+      res.json(students2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch students" });
+    }
+  });
+  app2.get("/api/students/:id", async (req, res) => {
+    try {
+      const student = await storage.getStudent(req.params.id);
+      if (!student) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      res.json(student);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch student" });
+    }
+  });
+  app2.get("/api/students/code/:code", async (req, res) => {
+    try {
+      const student = await storage.getStudentByCode(req.params.code);
+      if (!student) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      res.json(student);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch student" });
+    }
+  });
+  app2.post("/api/students", async (req, res) => {
+    try {
+      const studentData = insertStudentSchema.parse(req.body);
+      const student = await storage.createStudent(studentData);
+      res.status(201).json(student);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid student data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create student" });
+    }
+  });
+  app2.post("/api/students/bulk-import", upload.single("csvFile"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No CSV file provided" });
+      }
+      const csvContent = req.file.buffer.toString("utf-8");
+      const lines = csvContent.split("\n").filter((line) => line.trim());
+      if (lines.length < 2) {
+        return res.status(400).json({ message: "CSV file must have header and at least one data row" });
+      }
+      const header = lines[0].split(",").map((h) => h.trim());
+      const results = {
+        success: [],
+        errors: []
+      };
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(",").map((v) => v.trim());
+        try {
+          const studentData = {};
+          header.forEach((col, index) => {
+            const value = values[index] || "";
+            switch (col.toLowerCase()) {
+              case "name":
+              case "student name":
+              case "\u0627\u0644\u0627\u0633\u0645":
+                studentData.name = value;
+                break;
+              case "guardian phone":
+              case "guardianphone":
+              case "phone":
+              case "\u0631\u0642\u0645 \u0648\u0644\u064A \u0627\u0644\u0623\u0645\u0631":
+                studentData.guardianPhone = value;
+                break;
+              case "guardian phone 2":
+              case "guardianphone2":
+              case "phone2":
+              case "\u0631\u0642\u0645 \u0648\u0644\u064A \u0627\u0644\u0623\u0645\u0631 2":
+                studentData.guardianPhone2 = value || null;
+                break;
+              case "address":
+              case "\u0627\u0644\u0639\u0646\u0648\u0627\u0646":
+                studentData.address = value || null;
+                break;
+              case "grade":
+              case "grade level":
+              case "gradelevel":
+              case "\u0627\u0644\u0635\u0641":
+                studentData.gradeLevel = value;
+                break;
+              case "section":
+              case "class":
+              case "\u0627\u0644\u0634\u0639\u0628\u0629":
+                studentData.section = value;
+                break;
+            }
+          });
+          if (!studentData.name || !studentData.guardianPhone || !studentData.gradeLevel || !studentData.section) {
+            results.errors.push({
+              row: i + 1,
+              error: "Missing required fields (name, guardianPhone, gradeLevel, section)",
+              data: lines[i]
+            });
+            continue;
+          }
+          const validatedData = insertStudentSchema.parse(studentData);
+          const student = await storage.createStudent(validatedData);
+          results.success.push(student);
+        } catch (error) {
+          results.errors.push({
+            row: i + 1,
+            error: error.message || "Failed to process row",
+            data: lines[i]
+          });
+        }
+      }
+      res.status(200).json({
+        message: `Processed ${results.success.length + results.errors.length} rows`,
+        successCount: results.success.length,
+        errorCount: results.errors.length,
+        students: results.success,
+        errors: results.errors
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to process CSV file", error: error.message });
+    }
+  });
+  app2.put("/api/students/:id", async (req, res) => {
+    try {
+      const updates = req.body;
+      const student = await storage.updateStudent(req.params.id, updates);
+      res.json(student);
+    } catch (error) {
+      if (error.message === "Student not found") {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      res.status(500).json({ message: "Failed to update student" });
+    }
+  });
+  app2.delete("/api/students/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteStudent(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete student" });
+    }
+  });
+  app2.get("/api/sessions", async (req, res) => {
+    try {
+      const sessions2 = await storage.getAllSessions();
+      res.json(sessions2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+  app2.get("/api/sessions/active", async (req, res) => {
+    try {
+      const activeSession = await storage.getActiveSession();
+      res.json(activeSession || null);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch active session" });
+    }
+  });
+  app2.post("/api/sessions", async (req, res) => {
+    try {
+      const sessionData = insertSessionSchema.parse(req.body);
+      const session = await storage.createSession(sessionData);
+      res.status(201).json(session);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid session data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create session" });
+    }
+  });
+  app2.put("/api/sessions/:id", async (req, res) => {
+    try {
+      const updates = req.body;
+      const session = await storage.updateSession(req.params.id, updates);
+      res.json(session);
+    } catch (error) {
+      if (error.message === "Session not found") {
+        return res.status(404).json({ message: "Session not found" });
+      }
+      res.status(500).json({ message: "Failed to update session" });
+    }
+  });
+  app2.get("/api/attendance/session/:sessionId", async (req, res) => {
+    try {
+      const attendance2 = await storage.getAttendanceBySession(req.params.sessionId);
+      res.json(attendance2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch attendance" });
+    }
+  });
+  app2.get("/api/attendance/student/:studentId", async (req, res) => {
+    try {
+      const attendance2 = await storage.getAttendanceByStudent(req.params.studentId);
+      res.json(attendance2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch attendance" });
+    }
+  });
+  app2.post("/api/attendance", async (req, res) => {
+    try {
+      const attendanceData = insertAttendanceSchema.parse(req.body);
+      const existingAttendance = await storage.getAttendanceRecord(
+        attendanceData.studentId,
+        attendanceData.sessionId
+      );
+      if (existingAttendance) {
+        return res.status(409).json({ message: "Attendance already recorded for this student in this session" });
+      }
+      const attendance2 = await storage.createAttendance(attendanceData);
+      res.status(201).json(attendance2);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid attendance data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to record attendance" });
+    }
+  });
+  app2.get("/api/grades", async (req, res) => {
+    try {
+      const grades2 = await storage.getAllGrades();
+      res.json(grades2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch grades" });
+    }
+  });
+  app2.get("/api/grades/student/:studentId", async (req, res) => {
+    try {
+      const { studentId } = req.params;
+      const grades2 = await storage.getGradesByStudent(studentId);
+      res.json(grades2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch student grades" });
+    }
+  });
+  app2.post("/api/grades", async (req, res) => {
+    try {
+      const gradeData = insertGradeSchema.parse(req.body);
+      const grade = await storage.createGrade(gradeData);
+      res.status(201).json(grade);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid grade data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create grade" });
+    }
+  });
+  app2.put("/api/grades/:id", async (req, res) => {
+    try {
+      const updates = req.body;
+      const grade = await storage.updateGrade(req.params.id, updates);
+      res.json(grade);
+    } catch (error) {
+      if (error.message === "Grade not found") {
+        return res.status(404).json({ message: "Grade not found" });
+      }
+      res.status(500).json({ message: "Failed to update grade" });
+    }
+  });
+  app2.delete("/api/grades/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteGrade(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Grade not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete grade" });
+    }
+  });
+  app2.get("/api/whatsapp/status", async (req, res) => {
+    try {
+      const status = whatsappService.getConnectionStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get WhatsApp status" });
+    }
+  });
+  app2.post("/api/whatsapp/connect", async (req, res) => {
+    try {
+      await whatsappService.connect();
+      res.json({ message: "WhatsApp connection initiated" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to connect to WhatsApp" });
+    }
+  });
+  app2.post("/api/whatsapp/disconnect", async (req, res) => {
+    try {
+      whatsappService.disconnect();
+      res.json({ message: "WhatsApp disconnected successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to disconnect WhatsApp" });
+    }
+  });
+  app2.post("/api/whatsapp/send-grade", async (req, res) => {
+    try {
+      const { studentName, phoneNumber, grade, subject, notes } = req.body;
+      if (!studentName || !phoneNumber || !grade) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+      const messageId = await whatsappService.sendGradeMessage(
+        studentName,
+        phoneNumber,
+        grade,
+        subject || "\u0627\u0644\u0627\u0645\u062A\u062D\u0627\u0646",
+        notes
+      );
+      res.json({ messageId, message: "Grade message queued successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send grade message" });
+    }
+  });
+  app2.get("/api/whatsapp/messages", async (req, res) => {
+    try {
+      const messages = whatsappService.getStoredMessages();
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get messages" });
+    }
+  });
+  app2.get("/api/whatsapp/messages/export", async (req, res) => {
+    try {
+      const format = req.query.format || "json";
+      if (format === "csv") {
+        const csvData = whatsappService.downloadMessagesAsCSV();
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", "attachment; filename=whatsapp-messages.csv");
+        res.send(csvData);
+      } else {
+        const jsonData = whatsappService.downloadMessagesAsJSON();
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", "attachment; filename=whatsapp-messages.json");
+        res.send(jsonData);
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to export messages" });
+    }
+  });
+  app2.delete("/api/whatsapp/messages", async (req, res) => {
+    try {
+      whatsappService.clearMessages();
+      res.json({ message: "Messages cleared successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to clear messages" });
+    }
+  });
+  app2.post("/api/whatsapp/send-message/:messageId", async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const success = await whatsappService.sendStoredMessage(messageId);
+      if (success) {
+        res.json({ message: "Message sent successfully" });
+      } else {
+        res.status(404).json({ message: "Message not found or already sent" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+  app2.post("/api/whatsapp/send-all", async (req, res) => {
+    try {
+      const results = await whatsappService.sendAllPendingMessages();
+      res.json({
+        message: "Send all operation completed",
+        results
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send all messages" });
+    }
+  });
+  app2.get("/api/whatsapp/groups", async (req, res) => {
+    try {
+      const groups = await whatsappService.getGroups();
+      res.json(groups);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get groups" });
+    }
+  });
+  app2.post("/api/whatsapp/send-group-message", async (req, res) => {
+    try {
+      const { groupId, message, mentionAll, groupName } = req.body;
+      if (!groupId || !message) {
+        return res.status(400).json({ message: "Group ID and message are required" });
+      }
+      const messageId = await whatsappService.sendGroupMessage(
+        groupId,
+        message,
+        mentionAll || false,
+        groupName
+      );
+      res.json({ messageId, message: "Group message queued successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send group message" });
+    }
+  });
+  app2.post("/api/whatsapp/mention-all", async (req, res) => {
+    try {
+      const { groupId, message, groupName } = req.body;
+      if (!groupId || !message) {
+        return res.status(400).json({ message: "Group ID and message are required" });
+      }
+      const messageId = await whatsappService.mentionAllInGroup(groupId, message, groupName);
+      res.json({ messageId, message: "Mention all message queued successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send mention all message" });
+    }
+  });
+  app2.post("/api/whatsapp/send-bulk-grades", async (req, res) => {
+    try {
+      const { gradeIds } = req.body;
+      if (!gradeIds || !Array.isArray(gradeIds) || gradeIds.length === 0) {
+        return res.status(400).json({ message: "Grade IDs array is required" });
+      }
+      const students2 = await storage.getAllStudents();
+      const grades2 = await storage.getAllGrades();
+      let sent = 0;
+      let total = gradeIds.length;
+      for (const gradeId of gradeIds) {
+        const grade = grades2.find((g) => g.id === gradeId);
+        if (!grade) continue;
+        const student = students2.find((s) => s.id === grade.studentId);
+        if (!student || !student.guardianPhone) continue;
+        try {
+          await whatsappService.sendGradeMessage(
+            student.name,
+            student.guardianPhone,
+            `${grade.score}/${grade.totalMarks} (${grade.grade})`,
+            grade.subject,
+            grade.notes
+          );
+          await storage.updateGrade(gradeId, { sentToParent: true });
+          sent++;
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`Failed to send grade message for ${student.name}:`, error);
+        }
+      }
+      res.json({ sent, total, message: `Successfully sent ${sent} of ${total} messages` });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send bulk grade messages" });
+    }
+  });
+  const httpServer = createServer(app2);
+  return httpServer;
+}
+
+// server/vite.ts
+import express from "express";
+import fs2 from "fs";
+import path3 from "path";
+import { createServer as createViteServer, createLogger } from "vite";
+
+// vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path2 from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+var vite_config_default = defineConfig({
+  plugins: [
+    react(),
+    runtimeErrorOverlay(),
+    ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
+      await import("@replit/vite-plugin-cartographer").then(
+        (m) => m.cartographer()
+      )
+    ] : []
+  ],
+  resolve: {
+    alias: {
+      "@": path2.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path2.resolve(import.meta.dirname, "shared"),
+      "@assets": path2.resolve(import.meta.dirname, "attached_assets")
+    }
+  },
+  root: path2.resolve(import.meta.dirname, "client"),
+  build: {
+    outDir: path2.resolve(import.meta.dirname, "dist/public"),
+    emptyOutDir: true
+  },
+  server: {
+    fs: {
+      strict: true,
+      deny: ["**/.*"]
+    }
+  }
+});
+
+// server/vite.ts
+import { nanoid } from "nanoid";
+var viteLogger = createLogger();
+function log(message, source = "express") {
+  const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
+async function setupVite(app2, server) {
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server },
+    allowedHosts: true
+  };
+  const vite = await createViteServer({
+    ...vite_config_default,
+    configFile: false,
+    customLogger: {
+      ...viteLogger,
+      error: (msg, options) => {
+        viteLogger.error(msg, options);
+        process.exit(1);
+      }
+    },
+    server: serverOptions,
+    appType: "custom"
+  });
+  app2.use(vite.middlewares);
+  app2.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
+    try {
+      const clientTemplate = path3.resolve(
+        import.meta.dirname,
+        "..",
+        "client",
+        "index.html"
+      );
+      let template = await fs2.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`
+      );
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+    } catch (e) {
+      vite.ssrFixStacktrace(e);
+      next(e);
+    }
+  });
+}
+function serveStatic(app2) {
+  const distPath = path3.resolve(import.meta.dirname, "public");
+  if (!fs2.existsSync(distPath)) {
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`
+    );
+  }
+  app2.use(express.static(distPath));
+  app2.use("*", (_req, res) => {
+    res.sendFile(path3.resolve(distPath, "index.html"));
+  });
+}
+
+// server/index.ts
+var app = express2();
+app.use(express2.json());
+app.use(express2.urlencoded({ extended: false }));
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path4 = req.path;
+  let capturedJsonResponse = void 0;
+  const originalResJson = res.json;
+  res.json = function(bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path4.startsWith("/api")) {
+      let logLine = `${req.method} ${path4} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "\u2026";
+      }
+      log(logLine);
+    }
+  });
+  next();
+});
+(async () => {
+  const server = await registerRoutes(app);
+  app.use((err, _req, res, _next) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+    res.status(status).json({ message });
+    throw err;
+  });
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+  const port = parseInt(process.env.PORT || "5000", 10);
+  server.listen({
+    port,
+    host: "0.0.0.0",
+    reusePort: true
+  }, () => {
+    log(`serving on port ${port}`);
+  });
+})();
