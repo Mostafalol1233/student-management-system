@@ -1,0 +1,117 @@
+Skip to contentfrontendd – Deployment Overview
+mostafalol1233's projects
+mostafalol1233's projects
+
+Hobby
+
+frontendd
+
+6aYukcvZS
+
+
+Find…
+F
+
+Deployment Details
+Created
+mostafalol1233 Avatar
+mostafalol1233
+3m ago
+Status
+Ready
+Latest
+Time to Ready
+19s
+3m ago
+Environment
+Production
+Current
+Domains
+frontendd-three-wheat.vercel.app
++1
+frontendd-git-main-mostafalol1233s-projects.vercel.app
+frontendd-jlsf7iq0h-mostafalol1233s-projects.vercel.app
+Source
+main
+70e74d6
+Add robust error handling for invalid user inputs
+
+Deployment Configuration
+Fluid Compute
+Deployment Protection
+Skew Protection
+Cold Start Prevention
+Fluid Compute
+Enabled
+Function CPU
+Standard
+1 vCPU
+2 GB Memory
+Deployment Protection
+Standard Protection
+Skew Protection
+Disabled
+Cold Start Prevention
+Build Logs
+1m 1s
+
+All Logs (59)
+
+Errors (0)
+
+Warnings (2)
+Find in logs
+CtrlF
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+✓ 1921 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                   2.20 kB │ gzip:   0.86 kB
+../dist/public/assets/index-DXeJPIrq.css   70.85 kB │ gzip:  12.15 kB
+../dist/public/assets/index-DetgdMPI.js   602.24 kB │ gzip: 177.66 kB
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.80s
+  dist/index.js  39.8kb
+⚡ Done in 11ms
+Warning: Detected "engines": { "node": ">=18.0.0" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
+Installing dependencies...
+up to date in 332ms
+Deployment Summary
+Assigning Custom Domains
+Runtime Logs
+
+View and debug runtime logs & errors
+
+Observability
+
+Monitor app health & performance
+
+Speed Insights
+
+Not Enabled
+Performance metrics from real users
+
+Web Analytics
+
+Not Enabled
+Analyze visitors & traffic in real-time
+
+Home
+Docs
+Guides
+Help
+Contact
+All systems normal
+
+Select a display theme:
+
+system
+
+light
+
+dark
+04:12:00
