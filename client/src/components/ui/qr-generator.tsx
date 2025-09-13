@@ -1,5 +1,5 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import QRCode from "qrcode";
+import * as QRCode from 'qrcode';
 
 interface QRGeneratorProps {
   value: string;
