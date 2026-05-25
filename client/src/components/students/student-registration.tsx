@@ -23,8 +23,8 @@ export default function StudentRegistration() {
   const qrRef = useRef<QRGeneratorRef>(null);
   const { toast } = useToast();
 
-  const form = useForm<InsertStudent>({
-    resolver: zodResolver(insertStudentSchema),
+  const form = useForm({
+    resolver: zodResolver(insertStudentSchema as any),
     defaultValues: {
       name: "",
       guardianPhone: "",

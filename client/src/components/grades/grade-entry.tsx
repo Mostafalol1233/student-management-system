@@ -25,8 +25,8 @@ export default function GradeEntry() {
     queryKey: ["/api/grades"],
   });
 
-  const form = useForm<InsertGrade>({
-    resolver: zodResolver(insertGradeSchema),
+  const form = useForm({
+    resolver: zodResolver(insertGradeSchema as any),
     defaultValues: {
       studentId: "",
       subject: "",
@@ -346,6 +346,7 @@ export default function GradeEntry() {
                             data-testid="textarea-notes"
                             {...field}
                             className="min-h-[80px]"
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormMessage />
