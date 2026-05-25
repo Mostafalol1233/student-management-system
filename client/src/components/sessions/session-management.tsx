@@ -10,364 +10,256 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { CalendarPlus, QrCode, StopCircle, Circle, Eye } from "lucide-react";
+import { CalendarPlus, QrCode, StopCircle, Play, Clock, CheckCircle2, Calendar } from "lucide-react";
+
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+  scheduled: { label: "مجدولة", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", icon: Calendar },
+  active: { label: "نشطة", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", icon: Play },
+  completed: { label: "مكتملة", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400", icon: CheckCircle2 },
+};
 
 export default function SessionManagement() {
   const { toast } = useToast();
 
-  const { data: sessions = [] } = useQuery<Session[]>({
-    queryKey: ["/api/sessions"],
-  });
-
-  const { data: activeSession } = useQuery<Session | null>({
-    queryKey: ["/api/sessions/active"],
-  });
+  const { data: sessions = [] } = useQuery<Session[]>({ queryKey: ["/api/sessions"] });
+  const { data: activeSession } = useQuery<Session | null>({ queryKey: ["/api/sessions/active"] });
 
   const form = useForm<InsertSession>({
     resolver: zodResolver(insertSessionSchema),
     defaultValues: {
       name: "",
-      date: "",
-      time: "",
+      date: new Date().toISOString().split("T")[0],
+      time: new Date().toTimeString().slice(0, 5),
       duration: 60,
     },
   });
 
-  const createSessionMutation = useMutation({
-    mutationFn: async (data: InsertSession) => {
-      const response = await apiRequest("POST", "/api/sessions", data);
-      return response.json();
-    },
+  const createMutation = useMutation({
+    mutationFn: async (data: InsertSession) => (await apiRequest("POST", "/api/sessions", data)).json(),
     onSuccess: (session: Session) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      form.reset();
-      toast({
-        title: "Session created successfully",
-        description: `${session.name} has been scheduled`,
-      });
+      form.reset({ name: "", date: new Date().toISOString().split("T")[0], time: new Date().toTimeString().slice(0, 5), duration: 60 });
+      toast({ title: "✅ تم إنشاء الحصة", description: session.name });
     },
-    onError: (error) => {
-      toast({
-        title: "Session creation failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
+    onError: (e: any) => toast({ title: "فشل الإنشاء", description: e.message, variant: "destructive" }),
   });
 
-  const updateSessionMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Session> }) => {
-      const response = await apiRequest("PUT", `/api/sessions/${id}`, updates);
-      return response.json();
-    },
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Session> }) =>
+      (await apiRequest("PUT", `/api/sessions/${id}`, updates)).json(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions/active"] });
-      toast({
-        title: "Session updated",
-        description: "Session status has been updated",
-      });
+      toast({ title: "✅ تم تحديث الحصة" });
     },
   });
 
-  const onSubmit = (data: InsertSession) => {
-    createSessionMutation.mutate(data);
-  };
-
-  const handleStartSession = (session: Session) => {
-    updateSessionMutation.mutate({
-      id: session.id,
-      updates: { status: "active" }
-    });
-  };
-
-  const handleEndSession = (session: Session) => {
-    updateSessionMutation.mutate({
-      id: session.id,
-      updates: { status: "completed" }
-    });
-  };
-
   const formatTime = (time: string) => {
     try {
-      const [hours, minutes] = time.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours), parseInt(minutes));
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch {
-      return time;
-    }
+      const [h, m] = time.split(":");
+      const d = new Date();
+      d.setHours(+h, +m);
+      return d.toLocaleTimeString("ar-SA", { hour: "numeric", minute: "2-digit", hour12: true });
+    } catch { return time; }
   };
+
+  const sortedSessions = [...sessions].sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  const completedCount = sessions.filter(s => s.status === "completed").length;
+  const scheduledCount = sessions.filter(s => s.status === "scheduled").length;
 
   return (
     <div className="space-y-6">
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "إجمالي الحصص", value: sessions.length, color: "text-foreground" },
+          { label: "مجدولة", value: scheduledCount, color: "text-blue-600" },
+          { label: "مكتملة", value: completedCount, color: "text-emerald-600" },
+        ].map(s => (
+          <div key={s.label} className="stat-card">
+            <div>
+              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+              <div className="text-xs text-muted-foreground">{s.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Create Session Form */}
+        {/* Create Form */}
         <Card>
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Create New Session</h3>
+          <div className="px-5 py-4 border-b flex items-center gap-2">
+            <CalendarPlus size={16} className="text-muted-foreground" />
+            <h3 className="font-semibold">إنشاء حصة جديدة</h3>
+          </div>
+          <CardContent className="p-5">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Session Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g., Mathematics - Chapter 5"
-                          data-testid="input-session-name"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <form onSubmit={form.handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>اسم الحصة *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="مثال: الرياضيات - الفصل الثاني" data-testid="input-session-name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="date"
-                            data-testid="input-session-date"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Time</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="time"
-                            data-testid="input-session-time"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="duration"
-                  render={({ field }) => (
+                  <FormField control={form.control} name="date" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Duration (minutes)</FormLabel>
+                      <FormLabel>التاريخ *</FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="60"
-                          min="15"
-                          max="300"
-                          data-testid="input-session-duration"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value))}
-                        />
+                        <Input type="date" data-testid="input-session-date" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
-                  )}
-                />
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  disabled={createSessionMutation.isPending}
-                  data-testid="button-create-session"
-                >
-                  <CalendarPlus className="mr-2" size={16} />
-                  {createSessionMutation.isPending ? "Creating..." : "Create Session"}
+                  )} />
+                  <FormField control={form.control} name="time" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الوقت *</FormLabel>
+                      <FormControl>
+                        <Input type="time" data-testid="input-session-time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+                <FormField control={form.control} name="duration" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>المدة (دقيقة) *</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="60" min="15" max="300" data-testid="input-session-duration"
+                        {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-create-session">
+                  <CalendarPlus size={14} className="mr-2" />
+                  {createMutation.isPending ? "جاري الإنشاء..." : "إنشاء الحصة"}
                 </Button>
               </form>
             </Form>
           </CardContent>
         </Card>
 
-        {/* Active Session */}
-        <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-2 border-primary/20">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Current Session</h3>
-              {activeSession && (
-                <div className="flex items-center space-x-2">
-                  <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
-                    <Circle className="mr-2 animate-pulse fill-green-500" size={8} />
-                    Live Session
-                  </Badge>
-                </div>
-              )}
+        {/* Active Session Card */}
+        <Card className={activeSession ? "border-emerald-200 dark:border-emerald-800" : ""}>
+          <div className="px-5 py-4 border-b flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold">الحصة الحالية</h3>
             </div>
+            {activeSession && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>
+                نشطة
+              </div>
+            )}
+          </div>
+          <CardContent className="p-5">
             {activeSession ? (
               <div className="space-y-4">
-                <div>
-                  <div className="text-sm text-muted-foreground">Session Name</div>
-                  <div className="font-medium" data-testid="text-active-session-name">
-                    {activeSession.name}
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
+                  <div className="font-semibold text-lg" data-testid="text-active-session-name">{activeSession.name}</div>
+                  <div className="text-sm text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+                    <span>📅 {activeSession.date}</span>
+                    <span>⏰ {formatTime(activeSession.time)}</span>
+                    <span>⏱️ {activeSession.duration} دقيقة</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">Start Time</div>
-                    <div className="font-medium" data-testid="text-active-session-time">
-                      {formatTime(activeSession.time)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Duration</div>
-                    <div className="font-medium" data-testid="text-active-session-duration">
-                      {activeSession.duration} minutes
-                    </div>
-                  </div>
-                </div>
-                <div className="pt-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      className="bg-blue-600 hover:bg-blue-700 text-white" 
-                      data-testid="button-qr-attendance"
-                      onClick={() => {
-                        window.location.href = "/attendance-scanning";
-                      }}
-                    >
-                      <QrCode className="mr-1" size={14} />
-                      QR Scanner
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                      data-testid="button-manual-attendance"
-                      onClick={() => {
-                        window.location.href = "/attendance-scanning";
-                      }}
-                    >
-                      ⌨️ Manual Entry
-                    </Button>
-                  </div>
-                  <Button 
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-medium" 
-                    data-testid="button-start-attendance"
-                    onClick={() => {
-                      window.location.href = "/attendance-scanning";
-                    }}
-                  >
-                    🚀 Start Advanced Attendance
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="w-full border-red-600 text-red-600 hover:bg-red-50"
-                    data-testid="button-end-session"
-                    onClick={() => handleEndSession(activeSession)}
-                    disabled={updateSessionMutation.isPending}
-                  >
-                    <StopCircle className="mr-2" size={16} />
-                    End Session
-                  </Button>
-                </div>
+                <Button
+                  className="w-full bg-red-500 hover:bg-red-600 text-white"
+                  onClick={() => updateMutation.mutate({ id: activeSession.id, updates: { status: "completed" } })}
+                  disabled={updateMutation.isPending}
+                  data-testid="button-end-session"
+                >
+                  <StopCircle size={14} className="mr-2" />
+                  إنهاء الحصة
+                </Button>
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <CalendarPlus size={48} className="mx-auto mb-4 opacity-50" />
-                <p>No active session</p>
-                <p className="text-sm">Create a session to get started</p>
+              <div className="text-center py-10 text-muted-foreground">
+                <CalendarPlus size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">لا توجد حصة نشطة</p>
+                <p className="text-xs mt-1">أنشئ حصة وابدأها لتسجيل الحضور</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Session History */}
+      {/* Sessions History */}
       <Card>
-        <div className="px-6 py-4 border-b border-border">
-          <h3 className="text-lg font-semibold">Session History</h3>
+        <div className="px-5 py-4 border-b flex items-center gap-2">
+          <Clock size={16} className="text-muted-foreground" />
+          <h3 className="font-semibold">سجل الحصص</h3>
+          <Badge variant="secondary">{sessions.length}</Badge>
         </div>
         <CardContent className="p-0">
           {sessions.length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground">
-              No sessions created yet
-            </div>
+            <div className="p-8 text-center text-muted-foreground text-sm">لم يتم إنشاء حصص بعد</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted">
-                    <TableHead>Session</TableHead>
-                    <TableHead>Date & Time</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>الحصة</TableHead>
+                    <TableHead>التاريخ والوقت</TableHead>
+                    <TableHead>المدة</TableHead>
+                    <TableHead>الحالة</TableHead>
+                    <TableHead>إجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sessions.map((session) => (
-                    <TableRow key={session.id} className="hover:bg-muted/50" data-testid={`row-session-${session.id}`}>
-                      <TableCell className="font-medium" data-testid={`text-session-name-${session.id}`}>
-                        {session.name}
-                      </TableCell>
-                      <TableCell data-testid={`text-session-datetime-${session.id}`}>
-                        {session.date} - {formatTime(session.time)}
-                      </TableCell>
-                      <TableCell data-testid={`text-session-duration-${session.id}`}>
-                        {session.duration} min
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            session.status === "active" 
-                              ? "secondary" 
-                              : session.status === "completed" 
-                              ? "outline" 
-                              : "secondary"
-                          }
-                          data-testid={`badge-session-status-${session.id}`}
-                        >
-                          {session.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
+                  {sortedSessions.map((session) => {
+                    const cfg = statusConfig[session.status] || statusConfig.scheduled;
+                    const Icon = cfg.icon;
+                    return (
+                      <TableRow key={session.id} className="hover:bg-muted/30" data-testid={`row-session-${session.id}`}>
+                        <TableCell className="font-medium text-sm" data-testid={`text-session-name-${session.id}`}>
+                          {session.name}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {session.date} · {formatTime(session.time)}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {session.duration} دقيقة
+                        </TableCell>
+                        <TableCell>
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${cfg.color}`} data-testid={`badge-session-status-${session.id}`}>
+                            <Icon size={11} />
+                            {cfg.label}
+                          </span>
+                        </TableCell>
+                        <TableCell>
                           {session.status === "scheduled" && (
                             <Button
                               size="sm"
-                              onClick={() => handleStartSession(session)}
-                              disabled={updateSessionMutation.isPending}
+                              onClick={() => updateMutation.mutate({ id: session.id, updates: { status: "active" } })}
+                              disabled={updateMutation.isPending || !!activeSession}
+                              className="h-7 text-xs"
                               data-testid={`button-start-${session.id}`}
                             >
-                              <QrCode size={16} className="text-primary" />
+                              <Play size={12} className="mr-1" />
+                              بدء
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            data-testid={`button-view-${session.id}`}
-                            onClick={() => {
-                              toast({
-                                title: "Session Details",
-                                description: "Session details view coming soon",
-                              });
-                            }}
-                          >
-                            <Eye size={16} />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                          {session.status === "active" && (
+                            <Button
+                              size="sm" variant="outline"
+                              onClick={() => updateMutation.mutate({ id: session.id, updates: { status: "completed" } })}
+                              disabled={updateMutation.isPending}
+                              className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                              data-testid={`button-end-${session.id}`}
+                            >
+                              <StopCircle size={12} className="mr-1" />
+                              إنهاء
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

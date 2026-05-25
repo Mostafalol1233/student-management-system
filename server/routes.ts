@@ -492,7 +492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/whatsapp/send-bulk-grades", async (req, res) => {
+  const sendBulkGradesHandler = async (req: any, res: any) => {
     try {
       const { gradeIds } = req.body;
       
@@ -521,12 +521,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             grade.subject,
             grade.notes || undefined
           );
-          
-          // Mark as sent
           await storage.updateGrade(gradeId, { sentToParent: true });
           sent++;
-          
-          // Add a small delay to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {
           console.error(`Failed to send grade message for ${student.name}:`, error);
@@ -537,7 +533,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ message: "Failed to send bulk grade messages" });
     }
-  });
+  };
+
+  app.post("/api/whatsapp/send-grade-notification", sendBulkGradesHandler);
+  app.post("/api/whatsapp/send-bulk-grades", sendBulkGradesHandler);
 
   const httpServer = createServer(app);
   return httpServer;

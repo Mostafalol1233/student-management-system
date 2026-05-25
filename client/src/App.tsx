@@ -8,7 +8,7 @@ import NotFound from "@/pages/not-found";
 import StudentProfile from "@/pages/student-profile";
 import StudentComprehensiveProfile from "@/pages/student-comprehensive-profile";
 
-// Route wrapper components
+const OverviewPage = () => <Dashboard initialSection="overview" />;
 const StudentRegistrationPage = () => <Dashboard initialSection="student-registration" />;
 const SessionManagementPage = () => <Dashboard initialSection="session-management" />;
 const AttendanceScanningPage = () => <Dashboard initialSection="attendance-scanning" />;
@@ -19,8 +19,8 @@ const WhatsAppManagementPage = () => <Dashboard initialSection="whatsapp-managem
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/" component={OverviewPage} />
+      <Route path="/dashboard" component={OverviewPage} />
       <Route path="/students" component={StudentRegistrationPage} />
       <Route path="/student/:id" component={StudentProfile} />
       <Route path="/student-comprehensive/:id" component={StudentComprehensiveProfile} />

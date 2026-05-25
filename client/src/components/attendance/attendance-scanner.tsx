@@ -4,231 +4,126 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Video, Check, X, Users, UserCheck, AlertCircle } from "lucide-react";
+import { Camera, Video, Check, X, Users, UserCheck, AlertCircle, Clock } from "lucide-react";
 import type { Session, Student, Attendance, InsertAttendance } from "@shared/schema";
 
-declare global {
-  interface Window {
-    Html5Qrcode: any;
-  }
-}
+declare global { interface Window { Html5Qrcode: any; } }
 
 export default function AttendanceScanner() {
   const [manualCode, setManualCode] = useState("");
   const [manualCodeError, setManualCodeError] = useState("");
+  const [manualCodeOk, setManualCodeOk] = useState("");
   const [isScanning, setIsScanning] = useState(false);
-  const [recentScans, setRecentScans] = useState<Array<{
-    student: Student;
-    time: Date;
-  }>>([]);
+  const [recentScans, setRecentScans] = useState<Array<{ student: Student; time: Date }>>([]);
   const qrScannerRef = useRef<any>(null);
   const { toast } = useToast();
 
-  const { data: activeSession } = useQuery<Session | null>({
-    queryKey: ["/api/sessions/active"],
-  });
-
-  const { data: students = [] } = useQuery<Student[]>({
-    queryKey: ["/api/students"],
-  });
-
+  const { data: activeSession } = useQuery<Session | null>({ queryKey: ["/api/sessions/active"] });
+  const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
   const { data: sessionAttendance = [] } = useQuery<Attendance[]>({
     queryKey: ["/api/attendance/session", activeSession?.id],
     enabled: !!activeSession?.id,
+    refetchInterval: 5000,
   });
 
-  const recordAttendanceMutation = useMutation({
-    mutationFn: async (data: InsertAttendance) => {
-      const response = await apiRequest("POST", "/api/attendance", data);
-      return response.json();
-    },
-    onSuccess: (attendance: Attendance) => {
+  const recordMutation = useMutation({
+    mutationFn: async (data: InsertAttendance) => (await apiRequest("POST", "/api/attendance", data)).json(),
+    onSuccess: (att: Attendance) => {
       queryClient.invalidateQueries({ queryKey: ["/api/attendance/session", activeSession?.id] });
-      const student = students.find(s => s.id === attendance.studentId);
-      if (student) {
-        setRecentScans(prev => [{
-          student,
-          time: new Date()
-        }, ...prev.slice(0, 4)]);
-      }
-      toast({
-        title: "Attendance recorded",
-        description: student ? `${student.name} marked as present` : "Student marked as present",
-      });
+      const student = students.find(s => s.id === att.studentId);
+      if (student) setRecentScans(prev => [{ student, time: new Date() }, ...prev.slice(0, 9)]);
+      toast({ title: "✅ تم تسجيل الحضور", description: student?.name });
     },
-    onError: (error) => {
-      toast({
-        title: "Failed to record attendance",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
+    onError: (e: any) => toast({ title: "فشل تسجيل الحضور", description: e.message, variant: "destructive" }),
   });
 
-  // Load QR scanner library
   useEffect(() => {
     if (!window.Html5Qrcode) {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-      document.head.appendChild(script);
+      const s = document.createElement("script");
+      s.src = "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js";
+      document.head.appendChild(s);
     }
+    return () => { stopScanner(); };
   }, []);
 
   const startScanner = async () => {
     if (!window.Html5Qrcode) {
-      toast({
-        title: "Scanner not available",
-        description: "QR scanner library is loading...",
-        variant: "destructive",
-      });
+      toast({ title: "المسح غير متاح", description: "جاري تحميل مكتبة QR...", variant: "destructive" });
       return;
     }
-
     try {
-      if (!qrScannerRef.current) {
-        qrScannerRef.current = new window.Html5Qrcode("qr-reader");
-      }
-
-      const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 }
-      };
-
+      if (!qrScannerRef.current) qrScannerRef.current = new window.Html5Qrcode("qr-reader");
       await qrScannerRef.current.start(
         { facingMode: "environment" },
-        config,
-        (decodedText: string) => {
-          handleCodeScan(decodedText, "qr");
-        },
-        (error: any) => {
-          // Ignore scanning errors - they're frequent and normal
-        }
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decoded: string) => handleCodeScan(decoded, "qr"),
+        () => {}
       );
-
       setIsScanning(true);
-    } catch (error) {
-      toast({
-        title: "Camera access failed",
-        description: "Please allow camera access to scan QR codes",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "فشل الوصول للكاميرا", description: "يرجى السماح بالوصول للكاميرا", variant: "destructive" });
     }
   };
 
   const stopScanner = async () => {
     if (qrScannerRef.current && isScanning) {
-      try {
-        await qrScannerRef.current.stop();
-        setIsScanning(false);
-      } catch (error) {
-        console.error("Error stopping scanner:", error);
-      }
+      try { await qrScannerRef.current.stop(); } catch {}
+      setIsScanning(false);
     }
   };
 
-  const handleCodeScan = async (code: string, method: "qr" | "manual") => {
+  const handleCodeScan = (code: string, method: "qr" | "manual") => {
     if (!activeSession) {
-      toast({
-        title: "No active session",
-        description: "Please start a session first",
-        variant: "destructive",
-      });
+      toast({ title: "لا توجد حصة نشطة", description: "يرجى بدء حصة أولاً", variant: "destructive" });
       return;
     }
-
     const student = students.find(s => s.code === code);
     if (!student) {
-      toast({
-        title: "Student not found",
-        description: `No student found with code: ${code}`,
-        variant: "destructive",
-      });
-      if (method === "manual") {
-        setManualCodeError("Student not found with this code");
-      }
+      if (method === "manual") setManualCodeError("لا يوجد طالب بهذا الكود");
       return;
     }
-
-    // Check if already marked present
-    const alreadyPresent = sessionAttendance.some(att => att.studentId === student.id);
+    const alreadyPresent = sessionAttendance.some(a => a.studentId === student.id);
     if (alreadyPresent) {
-      toast({
-        title: "Already recorded",
-        description: `${student.name} is already marked present`,
-        variant: "destructive",
-      });
-      if (method === "manual") {
-        setManualCodeError(`${student.name} is already marked present`);
-      }
+      if (method === "manual") setManualCodeError(`${student.name} سبق تسجيل حضوره`);
       return;
     }
-
-    recordAttendanceMutation.mutate({
-      studentId: student.id,
-      sessionId: activeSession.id,
-      status: "present",
-      scanMethod: method,
-    });
-
-    // Clear manual entry on successful submission
-    if (method === "manual") {
-      setManualCode("");
-      setManualCodeError("");
-    }
+    recordMutation.mutate({ studentId: student.id, sessionId: activeSession.id, status: "present", scanMethod: method });
+    if (method === "manual") { setManualCode(""); setManualCodeError(""); setManualCodeOk(""); }
   };
 
-  const handleManualEntry = () => {
-    setManualCodeError("");
-    if (manualCode.length === 3) {
-      handleCodeScan(manualCode, "manual");
-    }
-  };
-
-  const validateCodeRealTime = (code: string) => {
-    setManualCodeError("");
+  const validateCode = (code: string) => {
+    setManualCodeError(""); setManualCodeOk("");
     if (code.length === 3) {
       const student = students.find(s => s.code === code);
-      if (!student) {
-        setManualCodeError("Student not found with this code");
+      if (!student) { setManualCodeError("لا يوجد طالب بهذا الكود"); }
+      else if (sessionAttendance.some(a => a.studentId === student.id)) {
+        setManualCodeError(`${student.name} سبق تسجيل حضوره`);
       } else {
-        const alreadyPresent = sessionAttendance.some(att => att.studentId === student.id);
-        if (alreadyPresent) {
-          setManualCodeError(`${student.name} is already marked present`);
-        }
+        setManualCodeOk(`جاهز لتسجيل حضور: ${student.name}`);
       }
     }
   };
 
-  const presentStudents = sessionAttendance.length;
+  const presentCount = sessionAttendance.length;
   const totalStudents = students.length;
-  const absentStudents = totalStudents - presentStudents;
+  const absentCount = totalStudents - presentCount;
+  const attendancePct = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
 
-  const formatTime = (time: string) => {
-    try {
-      const [hours, minutes] = time.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours), parseInt(minutes));
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch {
-      return time;
-    }
-  };
+  const presentStudents = students.filter(s => sessionAttendance.some(a => a.studentId === s.id));
+  const absentStudents = students.filter(s => !sessionAttendance.some(a => a.studentId === s.id));
 
   if (!activeSession) {
     return (
       <Card>
-        <CardContent className="p-8 text-center">
-          <AlertCircle className="mx-auto mb-4 text-muted-foreground" size={48} />
-          <h3 className="text-lg font-semibold mb-2">No Active Session</h3>
-          <p className="text-muted-foreground">
-            Please create and start a session first to begin taking attendance.
-          </p>
+        <CardContent className="p-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+            <AlertCircle size={28} className="text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">لا توجد حصة نشطة</h3>
+          <p className="text-sm text-muted-foreground">يرجى إنشاء وبدء حصة من صفحة إدارة الحصص أولاً.</p>
         </CardContent>
       </Card>
     );
@@ -236,234 +131,211 @@ export default function AttendanceScanner() {
 
   return (
     <div className="space-y-6">
-      {/* Session Info Header */}
-      <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-l-4 border-l-blue-500">
-        <CardContent className="p-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">{activeSession.name}</h2>
-              <p className="text-gray-600">📅 {activeSession.date} • ⏰ {formatTime(activeSession.time)} • ⏱️ {activeSession.duration} min</p>
+      {/* Session Banner */}
+      <div className="rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 p-5 text-white">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full bg-white pulse-dot"></span>
+              <span className="text-sm font-medium text-white/80">حصة نشطة</span>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-green-600">{presentStudents}/{totalStudents}</div>
-              <div className="text-sm text-gray-600">Present Students</div>
-            </div>
+            <h2 className="text-xl font-bold">{activeSession.name}</h2>
+            <p className="text-sm text-white/70 mt-0.5">📅 {activeSession.date} · ⏰ {activeSession.time} · ⏱️ {activeSession.duration} دقيقة</p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="text-right">
+            <div className="text-3xl font-bold" data-testid="text-present-count">{presentCount}/{totalStudents}</div>
+            <div className="text-sm text-white/70">حضور {attendancePct}%</div>
+          </div>
+        </div>
+        <div className="mt-3 h-2 bg-white/20 rounded-full overflow-hidden">
+          <div className="h-full bg-white rounded-full transition-all duration-700" style={{ width: `${attendancePct}%` }} />
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Advanced Attendance Methods */}
-        <div className="lg:col-span-2">
-          <Card className="border-2 border-primary/20">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-                  🎯 Advanced Attendance System
-                </h3>
-                <Badge variant="outline" className="border-green-500 text-green-700">
-                  Dual Mode Ready
-                </Badge>
+        {/* Scanner Area */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* QR Scanner */}
+          <Card>
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Camera size={16} className="text-muted-foreground" />
+                <h3 className="font-semibold">مسح رمز QR</h3>
               </div>
-              <div className="space-y-6">
-                {/* Mode Selection */}
-                <div className="flex bg-gray-100 p-1 rounded-lg">
-                  <button
-                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                      !isScanning
-                        ? 'bg-white shadow-sm text-blue-600 border border-blue-200'
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                    onClick={stopScanner}
-                  >
-                    📱 QR Camera Mode
-                  </button>
-                  <button
-                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                      isScanning
-                        ? 'bg-white shadow-sm text-green-600 border border-green-200'
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                    onClick={() => {}}
-                  >
-                    ⌨️ Manual Entry Mode
-                  </button>
-                </div>
-
-                {/* QR Scanner Section */}
-                <div className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4">
-                  <div className="aspect-video bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg flex items-center justify-center">
-                    {!isScanning ? (
-                      <div className="text-center">
-                        <div className="w-20 h-20 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Camera className="text-blue-600" size={32} />
-                        </div>
-                        <h4 className="text-lg font-semibold text-gray-800 mb-2">QR Code Scanner</h4>
-                        <p className="text-gray-600 mb-6">Scan student QR codes for instant attendance</p>
-                        <Button 
-                          onClick={startScanner}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
-                          data-testid="button-enable-camera"
-                        >
-                          <Video className="mr-2" size={16} />
-                          🚀 Start QR Scanner
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="w-full h-full relative">
-                        <div id="qr-reader" className="w-full h-full rounded-lg"></div>
-                        <div className="absolute top-4 left-4">
-                          <Badge className="bg-green-500 text-white">
-                            🔴 LIVE - Scanning QR Codes
-                          </Badge>
-                        </div>
-                        <Button
-                          className="absolute top-4 right-4 bg-red-500 hover:bg-red-600"
-                          onClick={stopScanner}
-                          data-testid="button-stop-camera"
-                        >
-                          <X className="mr-2" size={16} />
-                          Stop Scanner
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Manual Entry Section */}
-                <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-6">
-                  <div className="flex items-center mb-4">
-                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mr-3">
-                      ⌨️
+              {isScanning && (
+                <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 pulse-dot mr-1.5 inline-block"></span>
+                  جاري المسح
+                </Badge>
+              )}
+            </div>
+            <CardContent className="p-5">
+              <div className="rounded-xl overflow-hidden bg-muted aspect-video flex items-center justify-center">
+                {!isScanning ? (
+                  <div className="text-center p-8">
+                    <div className="w-16 h-16 rounded-2xl bg-card flex items-center justify-center mx-auto mb-4">
+                      <Camera size={28} className="text-muted-foreground" />
                     </div>
-                    <h4 className="text-lg font-semibold text-gray-800">Manual Entry Mode</h4>
-                  </div>
-                  <div className="flex space-x-3">
-                    <div className="flex-1">
-                      <Input
-                        placeholder="Enter student 3-digit code..."
-                        value={manualCode}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 3);
-                          setManualCode(value);
-                          validateCodeRealTime(value);
-                        }}
-                        maxLength={3}
-                        className={`font-mono text-center text-xl h-12 border-2 focus:border-orange-500 ${
-                          manualCodeError 
-                            ? 'border-red-400 bg-red-50' 
-                            : manualCode.length === 3 && !manualCodeError 
-                              ? 'border-green-400 bg-green-50' 
-                              : 'border-orange-300'
-                        }`}
-                        data-testid="input-manual-code"
-                      />
-                    </div>
-                    <Button 
-                      onClick={handleManualEntry}
-                      disabled={manualCode.length !== 3 || manualCodeError !== "" || recordAttendanceMutation.isPending}
-                      className="h-12 px-6 bg-orange-500 hover:bg-orange-600 text-white font-semibold disabled:bg-gray-400"
-                      data-testid="button-mark-present"
-                    >
-                      <Check className="mr-2" size={16} />
-                      {recordAttendanceMutation.isPending ? "Processing..." : "✅ Mark Present"}
+                    <p className="text-sm text-muted-foreground mb-4">اضغط لتشغيل الكاميرا ومسح رموز QR</p>
+                    <Button onClick={startScanner} data-testid="button-enable-camera">
+                      <Video size={14} className="mr-2" />
+                      تشغيل الكاميرا
                     </Button>
                   </div>
-                  
-                  {/* Progress indicator */}
-                  <div className="mt-3 flex space-x-1">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className={`w-8 h-2 rounded-full ${
-                          i < manualCode.length
-                            ? manualCodeError
-                              ? 'bg-red-400'
-                              : 'bg-green-400'
-                            : 'bg-gray-200'
-                        }`}
-                      />
+                ) : (
+                  <div className="w-full h-full relative">
+                    <div id="qr-reader" className="w-full h-full"></div>
+                    <Button
+                      className="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white h-8 text-xs"
+                      onClick={stopScanner} data-testid="button-stop-camera"
+                    >
+                      <X size={12} className="mr-1" /> إيقاف
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Manual Entry */}
+          <Card>
+            <div className="px-5 py-4 border-b flex items-center gap-2">
+              <span className="text-base">⌨️</span>
+              <h3 className="font-semibold">إدخال الكود يدوياً</h3>
+            </div>
+            <CardContent className="p-5">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Input
+                    placeholder="الكود المكون من 3 أرقام"
+                    value={manualCode}
+                    onChange={e => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 3);
+                      setManualCode(v);
+                      validateCode(v);
+                    }}
+                    onKeyDown={e => { if (e.key === "Enter" && manualCode.length === 3 && !manualCodeError) handleCodeScan(manualCode, "manual"); }}
+                    maxLength={3}
+                    className={`font-mono text-center text-xl h-12 border-2 transition-colors ${
+                      manualCodeError ? "border-red-400 focus:border-red-400" :
+                      manualCodeOk ? "border-emerald-400 focus:border-emerald-400" :
+                      "border-border"
+                    }`}
+                    data-testid="input-manual-code"
+                  />
+                  <div className="flex gap-1 mt-2">
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className={`flex-1 h-1 rounded-full transition-colors ${
+                        i < manualCode.length ? manualCodeError ? "bg-red-400" : "bg-primary" : "bg-muted"
+                      }`} />
                     ))}
                   </div>
-
-                  {/* Status messages */}
-                  {manualCode.length > 0 && manualCode.length < 3 && !manualCodeError && (
-                    <p className="mt-2 text-sm text-orange-600">
-                      Enter {3 - manualCode.length} more digit{3 - manualCode.length > 1 ? 's' : ''}
-                    </p>
-                  )}
-                  
-                  {manualCodeError && (
-                    <p className="mt-2 text-sm text-red-600 flex items-center">
-                      <AlertCircle className="mr-1" size={14} />
-                      {manualCodeError}
-                    </p>
-                  )}
-                  
-                  {manualCode.length === 3 && !manualCodeError && (
-                    <p className="mt-2 text-sm text-green-600 flex items-center">
-                      <Check className="mr-1" size={14} />
-                      Ready to mark attendance for {students.find(s => s.code === manualCode)?.name}
-                    </p>
-                  )}
+                  {manualCodeError && <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1"><AlertCircle size={12} />{manualCodeError}</p>}
+                  {manualCodeOk && !manualCodeError && <p className="text-xs text-emerald-600 mt-1.5 flex items-center gap-1"><Check size={12} />{manualCodeOk}</p>}
                 </div>
+                <Button
+                  onClick={() => handleCodeScan(manualCode, "manual")}
+                  disabled={manualCode.length !== 3 || !!manualCodeError || recordMutation.isPending}
+                  className="h-12 px-6"
+                  data-testid="button-mark-present"
+                >
+                  <UserCheck size={16} className="mr-1" />
+                  {recordMutation.isPending ? "..." : "تسجيل"}
+                </Button>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Attendance Status */}
-        <Card>
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Session Status</h3>
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-primary" data-testid="text-present-count">
-                  {presentStudents}
-                </div>
-                <p className="text-sm text-muted-foreground">Students Present</p>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-accent" data-testid="text-absent-count">
-                  {absentStudents}
-                </div>
-                <p className="text-sm text-muted-foreground">Students Absent</p>
-              </div>
-              <div className="text-center">
-                <div className="text-sm text-muted-foreground">
-                  {Math.round((presentStudents / totalStudents) * 100)}% Attendance Rate
-                </div>
-              </div>
-              <div className="pt-4 border-t border-border">
-                <div className="text-sm text-muted-foreground mb-2">Recent Scans</div>
-                <div className="space-y-2">
-                  {recentScans.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-4 text-sm">
-                      No scans yet
-                    </div>
-                  ) : (
-                    recentScans.map((scan, index) => (
-                      <div 
-                        key={index}
-                        className="flex items-center justify-between p-2 bg-secondary/10 rounded"
-                        data-testid={`recent-scan-${index}`}
-                      >
-                        <span className="text-sm">{scan.student.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {scan.time.toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
+        {/* Status Panel */}
+        <div className="space-y-4">
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="stat-card flex-col text-center">
+              <div className="text-2xl font-bold text-emerald-600">{presentCount}</div>
+              <div className="text-xs text-muted-foreground">حاضر</div>
+            </div>
+            <div className="stat-card flex-col text-center">
+              <div className="text-2xl font-bold text-red-500">{absentCount}</div>
+              <div className="text-xs text-muted-foreground">غائب</div>
+            </div>
+          </div>
+
+          {/* Recent Scans */}
+          <Card>
+            <div className="px-4 py-3 border-b flex items-center gap-2">
+              <Clock size={14} className="text-muted-foreground" />
+              <h3 className="text-sm font-semibold">آخر عمليات التسجيل</h3>
+            </div>
+            <CardContent className="p-0">
+              {recentScans.length === 0 ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">لا توجد عمليات بعد</div>
+              ) : (
+                <div className="divide-y">
+                  {recentScans.map((scan, i) => (
+                    <div key={i} className="px-4 py-2.5 flex items-center gap-2" data-testid={`recent-scan-${i}`}>
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                        <Check size={12} className="text-emerald-600" />
                       </div>
-                    ))
-                  )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm truncate">{scan.student.name}</div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {scan.time.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Absent Students */}
+      {absentStudents.length > 0 && (
+        <Card>
+          <div className="px-5 py-4 border-b flex items-center gap-2">
+            <AlertCircle size={16} className="text-red-500" />
+            <h3 className="font-semibold">الغائبون</h3>
+            <Badge variant="destructive" className="text-xs">{absentStudents.length}</Badge>
+          </div>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>الطالب</TableHead>
+                    <TableHead>الكود</TableHead>
+                    <TableHead>الصف</TableHead>
+                    <TableHead>إجراء</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {absentStudents.map(student => (
+                    <TableRow key={student.id} className="hover:bg-muted/30">
+                      <TableCell className="font-medium text-sm">{student.name}</TableCell>
+                      <TableCell><Badge variant="outline" className="font-mono text-xs">{student.code}</Badge></TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{student.gradeLevel} - {student.section}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="outline"
+                          onClick={() => handleCodeScan(student.code, "manual")}
+                          disabled={recordMutation.isPending}
+                          className="h-7 text-xs"
+                        >
+                          <Check size={11} className="mr-1" />
+                          تسجيل حضور
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   );
 }
