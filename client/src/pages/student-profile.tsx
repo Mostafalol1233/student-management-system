@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +46,7 @@ export default function StudentProfile() {
 
   // Form for editing student
   const form = useForm<InsertStudent>({
-    resolver: zodResolver(insertStudentSchema),
+    resolver: zodResolver(insertStudentSchema as any),
     defaultValues: {
       name: student?.name || "",
       guardianPhone: student?.guardianPhone || "",
@@ -58,7 +58,7 @@ export default function StudentProfile() {
   });
 
   // Update form values when student data loads
-  useState(() => {
+  useEffect(() => {
     if (student) {
       form.reset({
         name: student.name,
@@ -273,7 +273,7 @@ export default function StudentProfile() {
                       <FormItem>
                         <FormLabel>رقم هاتف ولي الأمر</FormLabel>
                         <FormControl>
-                          <Input placeholder="01XXXXXXXXX" {...field} />
+                          <Input placeholder="01XXXXXXXXX" {...field} value={field.value ?? ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -287,7 +287,7 @@ export default function StudentProfile() {
                       <FormItem>
                         <FormLabel>رقم هاتف إضافي (اختياري)</FormLabel>
                         <FormControl>
-                          <Input placeholder="01XXXXXXXXX" {...field} />
+                          <Input placeholder="01XXXXXXXXX" {...field} value={field.value ?? ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -301,7 +301,7 @@ export default function StudentProfile() {
                       <FormItem>
                         <FormLabel>العنوان (اختياري)</FormLabel>
                         <FormControl>
-                          <Input placeholder="أدخل العنوان" {...field} />
+                          <Input placeholder="أدخل العنوان" {...field} value={field.value ?? ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

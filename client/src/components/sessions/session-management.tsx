@@ -23,8 +23,8 @@ export default function SessionManagement() {
     queryKey: ["/api/sessions/active"],
   });
 
-  const form = useForm<InsertSession>({
-    resolver: zodResolver(insertSessionSchema),
+  const form = useForm({
+    resolver: zodResolver(insertSessionSchema as any),
     defaultValues: {
       name: "",
       date: "",
