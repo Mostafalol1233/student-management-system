@@ -15,19 +15,92 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import QRGenerator, { QRGeneratorRef } from "@/components/ui/qr-generator";
-import { Plus, Download, Upload, FileText, AlertCircle, CheckCircle, Search, Trash2, Edit, Eye, Users, UserPlus } from "lucide-react";
+import { Plus, Download, Upload, FileText, AlertCircle, CheckCircle, Search, Trash2, Eye, Users, UserPlus, Printer, GraduationCap } from "lucide-react";
 
 const GRADES = ["الصف الأول", "الصف الثاني", "الصف الثالث", "الصف الرابع", "الصف الخامس", "الصف السادس", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTIONS = ["A", "B", "C", "D", "E"];
+
+function StudentIDCard({ student }: { student: Student }) {
+  const qrRef = useRef<QRGeneratorRef>(null);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4">
+      {/* Printable card */}
+      <div id="student-id-card" className="flex items-center justify-center">
+        <div
+          className="bg-white border border-gray-200 rounded-xl overflow-hidden"
+          style={{ width: 320, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}
+        >
+          {/* Card header stripe */}
+          <div className="h-2 bg-primary w-full" />
+
+          {/* Card body */}
+          <div className="px-6 py-5 flex flex-col items-center gap-4">
+            {/* School name */}
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <GraduationCap size={13} />
+              <span className="text-xs font-medium tracking-wide uppercase">نظام المدرسة</span>
+            </div>
+
+            {/* Student name */}
+            <div className="text-center">
+              <div className="text-lg font-bold text-gray-900 leading-snug">{student.name}</div>
+              <div className="text-xs text-gray-500 mt-0.5">{student.gradeLevel} — {student.section}</div>
+            </div>
+
+            {/* QR code */}
+            <div className="p-2 border border-gray-100 rounded-lg bg-white">
+              <QRGenerator ref={qrRef} value={student.code} size={130} studentName={student.name} />
+            </div>
+
+            {/* Student ID */}
+            <div className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 flex items-center justify-between">
+              <span className="text-xs text-gray-500 font-medium">Student ID</span>
+              <span className="text-base font-bold font-mono tracking-widest text-gray-900">
+                {student.code}
+              </span>
+            </div>
+
+            {/* Guardian phone */}
+            <div className="w-full flex items-center justify-between text-xs text-gray-400">
+              <span>ولي الأمر</span>
+              <span className="font-mono">{student.guardianPhone}</span>
+            </div>
+          </div>
+
+          {/* Card footer */}
+          <div className="bg-gray-50 border-t border-gray-100 px-6 py-2 text-center">
+            <span className="text-[10px] text-gray-400 tracking-wider">STUDENT ACCESS CARD</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex gap-2 w-full">
+        <Button variant="outline" className="flex-1" onClick={handlePrint} data-testid="button-print-card">
+          <Printer size={14} className="mr-2" />
+          طباعة البطاقة
+        </Button>
+        <Button variant="outline" className="flex-1" onClick={() => { qrRef.current?.downloadQR(); }}
+          data-testid="button-download-qr">
+          <Download size={14} className="mr-2" />
+          تحميل QR
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function StudentRegistration() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [bulkImportResults, setBulkImportResults] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const qrRef = useRef<QRGeneratorRef>(null);
   const { toast } = useToast();
 
   const { data: students = [], isLoading } = useQuery<Student[]>({ queryKey: ["/api/students"] });
@@ -37,35 +110,22 @@ export default function StudentRegistration() {
     defaultValues: { name: "", guardianPhone: "", guardianPhone2: undefined, address: undefined, gradeLevel: "", section: "" },
   });
 
-  const editForm = useForm<Partial<InsertStudent>>({ defaultValues: {} });
-
   const createMutation = useMutation({
     mutationFn: async (data: InsertStudent) => (await apiRequest("POST", "/api/students", data)).json(),
     onSuccess: (student: Student) => {
       queryClient.invalidateQueries({ queryKey: ["/api/students"] });
       form.reset();
       setSelectedStudent(student);
-      toast({ title: "✅ تم تسجيل الطالب", description: `${student.name} — الكود: ${student.code}` });
+      toast({ title: "تم تسجيل الطالب", description: `${student.name} — الكود: ${student.code}` });
     },
     onError: (e: any) => toast({ title: "فشل التسجيل", description: e.message, variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Student> }) =>
-      (await apiRequest("PUT", `/api/students/${id}`, data)).json(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/students"] });
-      setEditingStudent(null);
-      toast({ title: "✅ تم تحديث بيانات الطالب" });
-    },
-    onError: (e: any) => toast({ title: "فشل التحديث", description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/students/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/students"] });
-      toast({ title: "✅ تم حذف الطالب" });
+      toast({ title: "تم حذف الطالب" });
     },
     onError: (e: any) => toast({ title: "فشل الحذف", description: e.message, variant: "destructive" }),
   });
@@ -81,7 +141,7 @@ export default function StudentRegistration() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/students"] });
       setBulkImportResults(result);
-      toast({ title: "✅ تم الاستيراد الجماعي", description: `${result.successCount} طالب — ${result.errorCount} أخطاء` });
+      toast({ title: "تم الاستيراد الجماعي", description: `${result.successCount} طالب — ${result.errorCount} أخطاء` });
     },
     onError: (e: any) => toast({ title: "فشل الاستيراد", description: e.message, variant: "destructive" }),
   });
@@ -120,11 +180,11 @@ export default function StudentRegistration() {
           <Tabs defaultValue="individual">
             <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="individual" data-testid="tab-individual">
-                <UserPlus size={14} className="mr-2" />
+                <UserPlus size={13} className="mr-2" />
                 تسجيل فردي
               </TabsTrigger>
               <TabsTrigger value="bulk" data-testid="tab-bulk">
-                <Upload size={14} className="mr-2" />
+                <Upload size={13} className="mr-2" />
                 استيراد جماعي
               </TabsTrigger>
             </TabsList>
@@ -132,10 +192,8 @@ export default function StudentRegistration() {
             <TabsContent value="individual">
               <Card>
                 <CardContent className="p-6">
-                  <h3 className="text-base font-semibold mb-5 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <UserPlus size={13} className="text-primary" />
-                    </div>
+                  <h3 className="text-sm font-semibold mb-5 flex items-center gap-2">
+                    <UserPlus size={14} className="text-muted-foreground" />
                     تسجيل طالب جديد
                   </h3>
                   <Form {...form}>
@@ -145,7 +203,7 @@ export default function StudentRegistration() {
                           <FormItem>
                             <FormLabel>الاسم الكامل *</FormLabel>
                             <FormControl>
-                              <Input placeholder="مثال: أحمد محمد علي" data-testid="input-student-name" {...field} />
+                              <Input placeholder="أحمد محمد علي" data-testid="input-student-name" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -154,7 +212,7 @@ export default function StudentRegistration() {
                           <Label className="text-sm font-medium">كود الطالب</Label>
                           <Input
                             value={selectedStudent ? `STU-${selectedStudent.code}` : "يتم توليده تلقائياً"}
-                            readOnly className="bg-muted text-muted-foreground mt-1.5" data-testid="display-student-id"
+                            readOnly className="bg-muted text-muted-foreground mt-1.5 font-mono" data-testid="display-student-id"
                           />
                         </div>
                       </div>
@@ -182,7 +240,7 @@ export default function StudentRegistration() {
                         <FormItem>
                           <FormLabel>العنوان (اختياري)</FormLabel>
                           <FormControl>
-                            <Input placeholder="مثال: القاهرة، مصر الجديدة" data-testid="input-address" {...field} value={field.value || ""} />
+                            <Input placeholder="القاهرة، مصر الجديدة" data-testid="input-address" {...field} value={field.value || ""} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -221,12 +279,12 @@ export default function StudentRegistration() {
                           </FormItem>
                         )} />
                       </div>
-                      <div className="flex gap-3 pt-2">
+                      <div className="flex gap-3 pt-1">
                         <Button type="button" variant="outline" onClick={() => { form.reset(); setSelectedStudent(null); }} data-testid="button-clear-form">
                           مسح
                         </Button>
                         <Button type="submit" disabled={createMutation.isPending} className="flex-1" data-testid="button-register-student">
-                          <Plus size={15} className="mr-2" />
+                          <Plus size={14} className="mr-2" />
                           {createMutation.isPending ? "جاري التسجيل..." : "تسجيل الطالب"}
                         </Button>
                       </div>
@@ -239,10 +297,8 @@ export default function StudentRegistration() {
             <TabsContent value="bulk">
               <Card>
                 <CardContent className="p-6 space-y-5">
-                  <h3 className="text-base font-semibold flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Upload size={13} className="text-primary" />
-                    </div>
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Upload size={14} className="text-muted-foreground" />
                     استيراد طلاب من CSV
                   </h3>
                   <p className="text-sm text-muted-foreground">
@@ -250,25 +306,25 @@ export default function StudentRegistration() {
                   </p>
                   <div className="flex gap-3">
                     <Button variant="outline" onClick={downloadSampleCSV} data-testid="button-download-sample">
-                      <FileText size={14} className="mr-2" />
+                      <FileText size={13} className="mr-2" />
                       تحميل نموذج CSV
                     </Button>
                     <Button onClick={() => fileInputRef.current?.click()} disabled={bulkMutation.isPending} data-testid="button-upload-csv">
-                      <Upload size={14} className="mr-2" />
+                      <Upload size={13} className="mr-2" />
                       {bulkMutation.isPending ? "جاري المعالجة..." : "رفع ملف CSV"}
                     </Button>
                   </div>
                   <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
                   {bulkImportResults && (
-                    <div className="border rounded-xl p-4 space-y-3">
-                      <h4 className="font-semibold">نتائج الاستيراد</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                    <div className="border rounded-lg p-4 space-y-3">
+                      <h4 className="font-semibold text-sm">نتائج الاستيراد</h4>
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                          <CheckCircle size={16} className="text-emerald-600" />
+                          <CheckCircle size={14} className="text-emerald-600" />
                           <span className="text-sm"><span className="font-bold text-emerald-700 dark:text-emerald-400">{bulkImportResults.successCount}</span> تم استيرادهم</span>
                         </div>
                         <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                          <AlertCircle size={16} className="text-red-600" />
+                          <AlertCircle size={14} className="text-red-600" />
                           <span className="text-sm"><span className="font-bold text-red-700 dark:text-red-400">{bulkImportResults.errorCount}</span> أخطاء</span>
                         </div>
                       </div>
@@ -290,52 +346,41 @@ export default function StudentRegistration() {
           </Tabs>
         </div>
 
-        {/* QR Preview */}
-        <div className="bg-card rounded-xl border p-6 flex flex-col items-center">
-          <h3 className="text-base font-semibold mb-4 self-start">رمز QR للطالب</h3>
-          <div className="flex-1 flex flex-col items-center justify-center w-full space-y-4">
-            <div className="w-44 h-44 bg-muted rounded-xl flex items-center justify-center">
-              {selectedStudent ? (
-                <QRGenerator ref={qrRef} value={selectedStudent.code} size={160} studentName={selectedStudent.name} />
-              ) : (
-                <div className="w-36 h-36 bg-background rounded-lg border-2 border-dashed flex items-center justify-center text-muted-foreground text-3xl font-light">QR</div>
-              )}
+        {/* Student ID Card Panel */}
+        <div className="bg-card rounded-lg border p-5 flex flex-col">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+            <GraduationCap size={14} className="text-muted-foreground" />
+            بطاقة الطالب
+          </h3>
+          {selectedStudent ? (
+            <StudentIDCard student={selectedStudent} />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center py-8 gap-3">
+              <div className="w-16 h-20 rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
+                <GraduationCap size={22} className="text-muted-foreground/30" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">لم يتم اختيار طالب</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">سجّل طالباً جديداً أو اختر طالباً من القائمة</p>
+              </div>
             </div>
-            <div className="text-2xl font-bold text-primary font-mono" data-testid="display-student-code">
-              {selectedStudent?.code || "---"}
-            </div>
-            <p className="text-xs text-muted-foreground">الكود الفريد للطالب</p>
-            {selectedStudent && (
-              <>
-                <div className="text-center">
-                  <div className="font-medium text-sm">{selectedStudent.name}</div>
-                  <div className="text-xs text-muted-foreground">{selectedStudent.gradeLevel} - {selectedStudent.section}</div>
-                </div>
-                <Button className="w-full" variant="outline" data-testid="button-download-qr"
-                  onClick={() => { qrRef.current?.downloadQR(); toast({ title: "تم تحميل رمز QR" }); }}>
-                  <Download size={14} className="mr-2" />
-                  تحميل رمز QR
-                </Button>
-              </>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Students List */}
+      {/* Students Table */}
       <Card>
         <div className="px-5 py-4 border-b flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex items-center gap-2 flex-1">
-            <Users size={16} className="text-muted-foreground" />
-            <h3 className="font-semibold">قائمة الطلاب</h3>
+            <Users size={15} className="text-muted-foreground" />
+            <h3 className="font-semibold text-sm">قائمة الطلاب</h3>
             <Badge variant="secondary">{students.length}</Badge>
           </div>
           <div className="flex gap-2">
             <div className="relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="بحث بالاسم أو الكود..."
                 className="pl-8 h-8 text-sm w-48"
                 data-testid="input-search-students"
@@ -354,38 +399,38 @@ export default function StudentRegistration() {
         </div>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">جاري التحميل...</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">جاري التحميل...</div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
-              <Users size={32} className="mx-auto mb-2 opacity-30" />
+            <div className="p-10 text-center text-muted-foreground">
+              <Users size={28} className="mx-auto mb-2 opacity-20" />
               <p className="text-sm">{search ? "لا توجد نتائج" : "لم يتم تسجيل طلاب بعد"}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>الطالب</TableHead>
-                    <TableHead>الكود</TableHead>
-                    <TableHead>الصف / الشعبة</TableHead>
-                    <TableHead>هاتف ولي الأمر</TableHead>
-                    <TableHead>الحالة</TableHead>
-                    <TableHead className="text-left">إجراءات</TableHead>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="text-xs">الطالب</TableHead>
+                    <TableHead className="text-xs">الكود</TableHead>
+                    <TableHead className="text-xs">الصف / الشعبة</TableHead>
+                    <TableHead className="text-xs">هاتف ولي الأمر</TableHead>
+                    <TableHead className="text-xs">الحالة</TableHead>
+                    <TableHead className="text-xs text-left">إجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((student) => (
-                    <TableRow key={student.id} className="hover:bg-muted/30" data-testid={`row-student-${student.id}`}>
+                    <TableRow key={student.id} className="hover:bg-muted/20" data-testid={`row-student-${student.id}`}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center flex-shrink-0">
-                            <span className="text-white text-xs font-bold">{student.name.slice(0, 1)}</span>
+                          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                            <span className="text-foreground text-xs font-semibold">{student.name.slice(0, 1)}</span>
                           </div>
                           <span className="font-medium text-sm" data-testid={`text-student-name-${student.id}`}>{student.name}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="font-mono" data-testid={`text-student-code-${student.id}`}>{student.code}</Badge>
+                        <Badge variant="outline" className="font-mono text-xs" data-testid={`text-student-code-${student.id}`}>{student.code}</Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{student.gradeLevel} - {student.section}</TableCell>
                       <TableCell className="text-sm text-muted-foreground font-mono">{student.guardianPhone}</TableCell>
@@ -396,14 +441,13 @@ export default function StudentRegistration() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setSelectedStudent(student)} data-testid={`button-view-qr-${student.id}`}>
+                          <Button size="sm" variant="ghost" onClick={() => setSelectedStudent(student)}
+                            title="عرض البطاقة" data-testid={`button-view-card-${student.id}`}>
                             <Eye size={13} />
                           </Button>
-                          <Button
-                            size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
                             onClick={() => { if (confirm(`حذف الطالب ${student.name}?`)) deleteMutation.mutate(student.id); }}
-                            data-testid={`button-delete-${student.id}`}
-                          >
+                            data-testid={`button-delete-${student.id}`}>
                             <Trash2 size={13} />
                           </Button>
                         </div>
