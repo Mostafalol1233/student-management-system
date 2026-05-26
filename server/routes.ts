@@ -1484,7 +1484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ── Auto-seed default users on every startup ───────────────────────────────
+  // ── Auto-seed default users + settings on every startup ───────────────────
   (async () => {
     try {
       const userCount = await storage.countUsers();
@@ -1505,6 +1505,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createUser({ name: "أستاذ محمد أحمد", email: "teacher@school.edu", password: teachPass, role: "teacher", teacherId: teacher.id });
 
         console.log("[seed] Default users created: admin@school.edu / admin123");
+      }
+
+      // Seed default settings if not set
+      const defaults: Record<string, string> = {
+        app_name: "Center M",
+        app_tagline: "Center Management",
+        semester_start: "2025-09-01",
+        semester_end: "2026-06-30",
+        grade_a_min: "90",
+        grade_b_min: "80",
+        grade_c_min: "70",
+        grade_d_min: "60",
+        currency: "جنيه",
+        country_code: "+20",
+        primary_color: "#6366f1",
+      };
+      for (const [key, value] of Object.entries(defaults)) {
+        const existing = await storage.getSetting(key);
+        if (!existing) await storage.setSetting(key, value);
       }
     } catch (e) {
       console.error("[seed] Auto-seed failed:", e);

@@ -170,14 +170,16 @@ export class MemStorage implements IStorage {
   private automationLogsMap = new Map<string, AutomationLog>();
   private expensesMap = new Map<string, Expense>();
   private settings = new Map<string, string>([
-    ["app_name", "نظام المدرسة"],
+    ["app_name", "Center M"],
+    ["app_tagline", "Center Management"],
     ["semester_start", "2025-09-01"],
     ["semester_end", "2026-06-30"],
     ["grade_a_min", "90"],
     ["grade_b_min", "80"],
     ["grade_c_min", "70"],
     ["grade_d_min", "60"],
-    ["currency", "ج"],
+    ["currency", "جنيه"],
+    ["country_code", "+20"],
     ["primary_color", "#6366f1"],
   ]);
 
