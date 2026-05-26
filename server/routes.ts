@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema, insertGroupSchema, insertHomeworkSchema, insertHomeworkSubmissionSchema, insertFinanceSchema } from "@shared/schema";
+import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema, insertGroupSchema, insertHomeworkSchema, insertHomeworkSubmissionSchema, insertFinanceSchema, insertTeacherSchema, insertSubjectSchema, insertEnrollmentSchema, insertSubscriptionSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import { createRequire } from "module";
@@ -986,6 +986,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err: any) {
       res.status(500).json({ message: "Failed to create ZIP", error: err.message });
     }
+  });
+
+  // ── Teachers ──────────────────────────────────────────────────────────────
+  app.get("/api/teachers", async (_req, res) => {
+    try { res.json(await storage.getAllTeachers()); }
+    catch { res.status(500).json({ message: "Failed to fetch teachers" }); }
+  });
+
+  app.get("/api/teachers/:id", async (req, res) => {
+    try {
+      const t = await storage.getTeacher(req.params.id);
+      if (!t) return res.status(404).json({ message: "Teacher not found" });
+      res.json(t);
+    } catch { res.status(500).json({ message: "Failed to fetch teacher" }); }
+  });
+
+  app.post("/api/teachers", async (req, res) => {
+    try {
+      const data = insertTeacherSchema.parse(req.body);
+      res.status(201).json(await storage.createTeacher(data));
+    } catch (e: any) {
+      if (e.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: e.errors });
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.put("/api/teachers/:id", async (req, res) => {
+    try { res.json(await storage.updateTeacher(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/teachers/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteTeacher(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Teacher not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete teacher" }); }
+  });
+
+  // ── Subjects ──────────────────────────────────────────────────────────────
+  app.get("/api/subjects", async (_req, res) => {
+    try { res.json(await storage.getAllSubjects()); }
+    catch { res.status(500).json({ message: "Failed to fetch subjects" }); }
+  });
+
+  app.post("/api/subjects", async (req, res) => {
+    try {
+      const data = insertSubjectSchema.parse(req.body);
+      res.status(201).json(await storage.createSubject(data));
+    } catch (e: any) {
+      if (e.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: e.errors });
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.put("/api/subjects/:id", async (req, res) => {
+    try { res.json(await storage.updateSubject(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/subjects/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteSubject(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Subject not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete subject" }); }
+  });
+
+  // ── Enrollments ───────────────────────────────────────────────────────────
+  app.get("/api/enrollments", async (_req, res) => {
+    try { res.json(await storage.getAllEnrollments()); }
+    catch { res.status(500).json({ message: "Failed to fetch enrollments" }); }
+  });
+
+  app.get("/api/enrollments/student/:studentId", async (req, res) => {
+    try { res.json(await storage.getEnrollmentsByStudent(req.params.studentId)); }
+    catch { res.status(500).json({ message: "Failed to fetch enrollments" }); }
+  });
+
+  app.get("/api/enrollments/teacher/:teacherId", async (req, res) => {
+    try { res.json(await storage.getEnrollmentsByTeacher(req.params.teacherId)); }
+    catch { res.status(500).json({ message: "Failed to fetch enrollments" }); }
+  });
+
+  app.post("/api/enrollments", async (req, res) => {
+    try {
+      const data = insertEnrollmentSchema.parse(req.body);
+      res.status(201).json(await storage.createEnrollment(data));
+    } catch (e: any) {
+      if (e.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: e.errors });
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.put("/api/enrollments/:id", async (req, res) => {
+    try { res.json(await storage.updateEnrollment(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/enrollments/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteEnrollment(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Enrollment not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete enrollment" }); }
+  });
+
+  // ── Subscriptions ─────────────────────────────────────────────────────────
+  app.get("/api/subscriptions", async (_req, res) => {
+    try { res.json(await storage.getAllSubscriptions()); }
+    catch { res.status(500).json({ message: "Failed to fetch subscriptions" }); }
+  });
+
+  app.get("/api/subscriptions/student/:studentId", async (req, res) => {
+    try { res.json(await storage.getSubscriptionsByStudent(req.params.studentId)); }
+    catch { res.status(500).json({ message: "Failed to fetch subscriptions" }); }
+  });
+
+  app.post("/api/subscriptions", async (req, res) => {
+    try {
+      const data = insertSubscriptionSchema.parse(req.body);
+      res.status(201).json(await storage.createSubscription(data));
+    } catch (e: any) {
+      if (e.name === "ZodError") return res.status(400).json({ message: "Invalid data", errors: e.errors });
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.put("/api/subscriptions/:id", async (req, res) => {
+    try { res.json(await storage.updateSubscription(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/subscriptions/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteSubscription(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Subscription not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete subscription" }); }
   });
 
   const httpServer = createServer(app);

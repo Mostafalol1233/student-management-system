@@ -14,7 +14,31 @@ export const students = pgTable("students", {
   section: text("section").notNull(),
   groupId: varchar("group_id"),
   qrPath: text("qr_path"),
+  status: text("status").notNull().default("active"), // active | suspended | overdue | graduated | archived
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const teachers = pgTable("teachers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  subject: text("subject").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  salaryType: text("salary_type").notNull().default("fixed"), // fixed | per_student | percentage
+  salaryAmount: real("salary_amount").default(0),
+  notes: text("notes"),
   status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const subjects = pgTable("subjects", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  teacherId: varchar("teacher_id"),
+  price: real("price").default(0),
+  sessionsPerMonth: integer("sessions_per_month").default(4),
+  color: text("color").default("#6366f1"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -24,8 +48,36 @@ export const groups = pgTable("groups", {
   gradeLevel: text("grade_level").notNull(),
   section: text("section").notNull(),
   subject: text("subject"),
+  teacherId: varchar("teacher_id"),
+  capacity: integer("capacity").default(30),
   description: text("description"),
-  color: text("color").default("#3b82f6"),
+  color: text("color").default("#6366f1"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const enrollments = pgTable("enrollments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull().references(() => students.id),
+  subjectId: varchar("subject_id"),
+  teacherId: varchar("teacher_id"),
+  groupId: varchar("group_id"),
+  status: text("status").notNull().default("active"), // active | suspended | completed
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const subscriptions = pgTable("subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull().references(() => students.id),
+  enrollmentId: varchar("enrollment_id"),
+  subjectId: varchar("subject_id"),
+  teacherId: varchar("teacher_id"),
+  amount: real("amount").notNull(),
+  paid: real("paid").default(0),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date"),
+  status: text("status").notNull().default("active"), // active | paid | overdue | expired
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -36,6 +88,8 @@ export const sessions = pgTable("sessions", {
   time: text("time").notNull(),
   duration: integer("duration").notNull(),
   groupId: varchar("group_id"),
+  teacherId: varchar("teacher_id"),
+  subjectId: varchar("subject_id"),
   status: text("status").notNull().default("scheduled"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -166,7 +220,11 @@ export const automationLogs = pgTable("automation_logs", {
 
 // Insert schemas
 export const insertStudentSchema = createInsertSchema(students).omit({ id: true, createdAt: true, code: true, qrPath: true, status: true });
+export const insertTeacherSchema = createInsertSchema(teachers).omit({ id: true, createdAt: true, status: true });
+export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true, createdAt: true });
 export const insertGroupSchema = createInsertSchema(groups).omit({ id: true, createdAt: true });
+export const insertEnrollmentSchema = createInsertSchema(enrollments).omit({ id: true, createdAt: true });
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, createdAt: true });
 export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdAt: true, status: true });
 export const insertAttendanceSchema = createInsertSchema(attendance).omit({ id: true, timeRecorded: true });
 export const insertGradeSchema = createInsertSchema(grades).omit({ id: true, createdAt: true, grade: true, sentToParent: true });
@@ -183,8 +241,16 @@ export const insertAutomationLogSchema = createInsertSchema(automationLogs).omit
 // Types
 export type Student = typeof students.$inferSelect;
 export type InsertStudent = z.infer<typeof insertStudentSchema>;
+export type Teacher = typeof teachers.$inferSelect;
+export type InsertTeacher = z.infer<typeof insertTeacherSchema>;
+export type Subject = typeof subjects.$inferSelect;
+export type InsertSubject = z.infer<typeof insertSubjectSchema>;
 export type Group = typeof groups.$inferSelect;
 export type InsertGroup = z.infer<typeof insertGroupSchema>;
+export type Enrollment = typeof enrollments.$inferSelect;
+export type InsertEnrollment = z.infer<typeof insertEnrollmentSchema>;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Session = typeof sessions.$inferSelect;
 export type InsertSession = z.infer<typeof insertSessionSchema>;
 export type Attendance = typeof attendance.$inferSelect;

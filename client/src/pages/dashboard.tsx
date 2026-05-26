@@ -15,6 +15,8 @@ import SmartAnalytics from "@/components/analytics/smart-analytics";
 import SettingsPage from "@/components/settings/settings-page";
 import Timetable from "@/components/timetable/timetable";
 import ExamBuilder from "@/components/exams/exam-builder";
+import TeacherManagement from "@/components/teachers/teacher-management";
+import ReceptionDashboard from "@/components/reception/reception-dashboard";
 
 export type ActiveSection =
   | "overview"
@@ -30,7 +32,9 @@ export type ActiveSection =
   | "analytics"
   | "timetable"
   | "exam-builder"
-  | "settings";
+  | "settings"
+  | "teachers"
+  | "reception";
 
 interface DashboardProps {
   initialSection?: ActiveSection;
@@ -52,6 +56,8 @@ const sectionMeta: Record<ActiveSection, { title: string; titleAr: string; descr
   "reports": { title: "Reports", titleAr: "التقارير", description: "تقارير الحضور والدرجات" },
   "whatsapp-management": { title: "WhatsApp", titleAr: "واتساب", description: "إرسال الإشعارات عبر واتساب" },
   "settings": { title: "Settings", titleAr: "الإعدادات", description: "إعدادات النظام والمنصة" },
+  "teachers": { title: "Teachers", titleAr: "المدرسين", description: "إدارة المدرسين والمرتبات" },
+  "reception": { title: "Reception", titleAr: "الاستقبال", description: "بحث سريع وتسجيل حضور يومي" },
 };
 
 export default function Dashboard({ initialSection = "overview", ...props }: DashboardProps) {
@@ -79,6 +85,8 @@ export default function Dashboard({ initialSection = "overview", ...props }: Das
       case "reports": return <Reports />;
       case "whatsapp-management": return <WhatsAppManagement />;
       case "settings": return <SettingsPage />;
+      case "teachers": return <TeacherManagement />;
+      case "reception": return <ReceptionDashboard />;
       default: return <Overview onNavigate={setActiveSection} />;
     }
   };

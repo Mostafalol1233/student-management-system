@@ -1,6 +1,10 @@
 import {
   type Student, type InsertStudent,
+  type Teacher, type InsertTeacher,
+  type Subject, type InsertSubject,
   type Group, type InsertGroup,
+  type Enrollment, type InsertEnrollment,
+  type Subscription, type InsertSubscription,
   type Session, type InsertSession,
   type Attendance, type InsertAttendance,
   type Grade, type InsertGrade,
@@ -25,12 +29,42 @@ export interface IStorage {
   updateStudent(id: string, u: Partial<Student>): Promise<Student>;
   deleteStudent(id: string): Promise<boolean>;
 
+  // Teachers
+  getAllTeachers(): Promise<Teacher[]>;
+  getTeacher(id: string): Promise<Teacher | undefined>;
+  createTeacher(t: InsertTeacher): Promise<Teacher>;
+  updateTeacher(id: string, u: Partial<Teacher>): Promise<Teacher>;
+  deleteTeacher(id: string): Promise<boolean>;
+
+  // Subjects
+  getAllSubjects(): Promise<Subject[]>;
+  getSubject(id: string): Promise<Subject | undefined>;
+  createSubject(s: InsertSubject): Promise<Subject>;
+  updateSubject(id: string, u: Partial<Subject>): Promise<Subject>;
+  deleteSubject(id: string): Promise<boolean>;
+
   // Groups
   getAllGroups(): Promise<Group[]>;
   getGroup(id: string): Promise<Group | undefined>;
   createGroup(g: InsertGroup): Promise<Group>;
   updateGroup(id: string, u: Partial<Group>): Promise<Group>;
   deleteGroup(id: string): Promise<boolean>;
+
+  // Enrollments
+  getAllEnrollments(): Promise<Enrollment[]>;
+  getEnrollmentsByStudent(studentId: string): Promise<Enrollment[]>;
+  getEnrollmentsByGroup(groupId: string): Promise<Enrollment[]>;
+  getEnrollmentsByTeacher(teacherId: string): Promise<Enrollment[]>;
+  createEnrollment(e: InsertEnrollment): Promise<Enrollment>;
+  updateEnrollment(id: string, u: Partial<Enrollment>): Promise<Enrollment>;
+  deleteEnrollment(id: string): Promise<boolean>;
+
+  // Subscriptions
+  getAllSubscriptions(): Promise<Subscription[]>;
+  getSubscriptionsByStudent(studentId: string): Promise<Subscription[]>;
+  createSubscription(s: InsertSubscription): Promise<Subscription>;
+  updateSubscription(id: string, u: Partial<Subscription>): Promise<Subscription>;
+  deleteSubscription(id: string): Promise<boolean>;
 
   // Sessions
   getSession(id: string): Promise<Session | undefined>;
@@ -109,7 +143,11 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private students = new Map<string, Student>();
+  private teachers = new Map<string, Teacher>();
+  private subjects = new Map<string, Subject>();
   private groups = new Map<string, Group>();
+  private enrollments = new Map<string, Enrollment>();
+  private subscriptions = new Map<string, Subscription>();
   private sessions = new Map<string, Session>();
   private attendance = new Map<string, Attendance>();
   private grades = new Map<string, Grade>();
@@ -131,7 +169,7 @@ export class MemStorage implements IStorage {
     ["grade_c_min", "70"],
     ["grade_d_min", "60"],
     ["currency", "ج"],
-    ["primary_color", "#3b82f6"],
+    ["primary_color", "#6366f1"],
   ]);
 
   private generateStudentCode(): string {
@@ -165,12 +203,40 @@ export class MemStorage implements IStorage {
   }
   async deleteStudent(id: string) { return this.students.delete(id); }
 
+  // Teachers
+  async getAllTeachers() { return Array.from(this.teachers.values()).sort((a, b) => a.name.localeCompare(b.name)); }
+  async getTeacher(id: string) { return this.teachers.get(id); }
+  async createTeacher(input: InsertTeacher): Promise<Teacher> {
+    const id = randomUUID();
+    const t: Teacher = { ...input, id, phone: input.phone || null, email: input.email || null, salaryAmount: input.salaryAmount ?? 0, notes: input.notes || null, status: "active", createdAt: new Date() };
+    this.teachers.set(id, t); return t;
+  }
+  async updateTeacher(id: string, u: Partial<Teacher>): Promise<Teacher> {
+    const t = this.teachers.get(id); if (!t) throw new Error("Teacher not found");
+    const updated = { ...t, ...u }; this.teachers.set(id, updated); return updated;
+  }
+  async deleteTeacher(id: string) { return this.teachers.delete(id); }
+
+  // Subjects
+  async getAllSubjects() { return Array.from(this.subjects.values()).sort((a, b) => a.name.localeCompare(b.name)); }
+  async getSubject(id: string) { return this.subjects.get(id); }
+  async createSubject(input: InsertSubject): Promise<Subject> {
+    const id = randomUUID();
+    const s: Subject = { ...input, id, description: input.description || null, teacherId: input.teacherId || null, price: input.price ?? 0, sessionsPerMonth: input.sessionsPerMonth ?? 4, color: input.color || "#6366f1", createdAt: new Date() };
+    this.subjects.set(id, s); return s;
+  }
+  async updateSubject(id: string, u: Partial<Subject>): Promise<Subject> {
+    const s = this.subjects.get(id); if (!s) throw new Error("Subject not found");
+    const updated = { ...s, ...u }; this.subjects.set(id, updated); return updated;
+  }
+  async deleteSubject(id: string) { return this.subjects.delete(id); }
+
   // Groups
   async getAllGroups() { return Array.from(this.groups.values()); }
   async getGroup(id: string) { return this.groups.get(id); }
   async createGroup(input: InsertGroup): Promise<Group> {
     const id = randomUUID();
-    const g: Group = { ...input, id, subject: input.subject || null, description: input.description || null, color: input.color || "#3b82f6", createdAt: new Date() };
+    const g: Group = { ...input, id, subject: input.subject || null, teacherId: input.teacherId || null, capacity: input.capacity ?? 30, description: input.description || null, color: input.color || "#6366f1", createdAt: new Date() };
     this.groups.set(id, g); return g;
   }
   async updateGroup(id: string, u: Partial<Group>): Promise<Group> {
@@ -179,13 +245,43 @@ export class MemStorage implements IStorage {
   }
   async deleteGroup(id: string) { return this.groups.delete(id); }
 
+  // Enrollments
+  async getAllEnrollments() { return Array.from(this.enrollments.values()); }
+  async getEnrollmentsByStudent(studentId: string) { return Array.from(this.enrollments.values()).filter(e => e.studentId === studentId); }
+  async getEnrollmentsByGroup(groupId: string) { return Array.from(this.enrollments.values()).filter(e => e.groupId === groupId); }
+  async getEnrollmentsByTeacher(teacherId: string) { return Array.from(this.enrollments.values()).filter(e => e.teacherId === teacherId); }
+  async createEnrollment(input: InsertEnrollment): Promise<Enrollment> {
+    const id = randomUUID();
+    const e: Enrollment = { ...input, id, subjectId: input.subjectId || null, teacherId: input.teacherId || null, groupId: input.groupId || null, notes: input.notes || null, createdAt: new Date() };
+    this.enrollments.set(id, e); return e;
+  }
+  async updateEnrollment(id: string, u: Partial<Enrollment>): Promise<Enrollment> {
+    const e = this.enrollments.get(id); if (!e) throw new Error("Enrollment not found");
+    const updated = { ...e, ...u }; this.enrollments.set(id, updated); return updated;
+  }
+  async deleteEnrollment(id: string) { return this.enrollments.delete(id); }
+
+  // Subscriptions
+  async getAllSubscriptions() { return Array.from(this.subscriptions.values()); }
+  async getSubscriptionsByStudent(studentId: string) { return Array.from(this.subscriptions.values()).filter(s => s.studentId === studentId); }
+  async createSubscription(input: InsertSubscription): Promise<Subscription> {
+    const id = randomUUID();
+    const s: Subscription = { ...input, id, enrollmentId: input.enrollmentId || null, subjectId: input.subjectId || null, teacherId: input.teacherId || null, paid: input.paid ?? 0, endDate: input.endDate || null, notes: input.notes || null, createdAt: new Date() };
+    this.subscriptions.set(id, s); return s;
+  }
+  async updateSubscription(id: string, u: Partial<Subscription>): Promise<Subscription> {
+    const s = this.subscriptions.get(id); if (!s) throw new Error("Subscription not found");
+    const updated = { ...s, ...u }; this.subscriptions.set(id, updated); return updated;
+  }
+  async deleteSubscription(id: string) { return this.subscriptions.delete(id); }
+
   // Sessions
   async getSession(id: string) { return this.sessions.get(id); }
   async getAllSessions() { return Array.from(this.sessions.values()); }
   async getActiveSession() { return Array.from(this.sessions.values()).find(s => s.status === "active"); }
   async createSession(input: InsertSession): Promise<Session> {
     const id = randomUUID();
-    const s: Session = { ...input, id, groupId: input.groupId || null, status: "scheduled", createdAt: new Date() };
+    const s: Session = { ...input, id, groupId: input.groupId || null, teacherId: input.teacherId || null, subjectId: input.subjectId || null, status: "scheduled", createdAt: new Date() };
     this.sessions.set(id, s); return s;
   }
   async updateSession(id: string, u: Partial<Session>): Promise<Session> {

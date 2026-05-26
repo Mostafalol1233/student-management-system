@@ -34,6 +34,8 @@ function Router() {
       <Route path="/whatsapp" component={Page("whatsapp-management")} />
       <Route path="/whatsapp-management" component={Page("whatsapp-management")} />
       <Route path="/settings" component={Page("settings")} />
+      <Route path="/teachers" component={Page("teachers")} />
+      <Route path="/reception" component={Page("reception")} />
       <Route path="/student/:id" component={StudentProfile} />
       <Route path="/student-comprehensive/:id" component={StudentComprehensiveProfile} />
       <Route component={NotFound} />

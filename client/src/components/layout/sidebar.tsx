@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3, MessageCircle, LayoutDashboard, Moon, Sun, ChevronLeft, ChevronRight, Users, BookOpen, DollarSign, TrendingUp, Calendar, ClipboardList, Settings } from "lucide-react";
+import { GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3, MessageCircle, LayoutDashboard, Moon, Sun, ChevronLeft, ChevronRight, Users, BookOpen, DollarSign, TrendingUp, Calendar, ClipboardList, Settings, UserCog, ConciergeBell } from "lucide-react";
 import { useLocation } from "wouter";
 import type { ActiveSection } from "@/pages/dashboard";
 
@@ -15,6 +15,7 @@ const menuGroups = [
     label: "الرئيسية",
     items: [
       { id: "overview" as ActiveSection, icon: LayoutDashboard, label: "لوحة التحكم", labelEn: "Dashboard" },
+      { id: "reception" as ActiveSection, icon: ConciergeBell, label: "الاستقبال", labelEn: "Reception" },
     ]
   },
   {
@@ -22,6 +23,12 @@ const menuGroups = [
     items: [
       { id: "student-registration" as ActiveSection, icon: UserPlus, label: "تسجيل الطلاب", labelEn: "Students" },
       { id: "group-management" as ActiveSection, icon: Users, label: "المجموعات", labelEn: "Groups" },
+    ]
+  },
+  {
+    label: "المدرسين",
+    items: [
+      { id: "teachers" as ActiveSection, icon: UserCog, label: "المدرسين", labelEn: "Teachers" },
     ]
   },
   {
@@ -58,6 +65,7 @@ const paths: Record<ActiveSection, string> = {
   "grade-entry": "/grades", "exam-builder": "/exams", "homework-management": "/homework",
   "finance-management": "/finance", "analytics": "/analytics", "reports": "/reports",
   "whatsapp-management": "/whatsapp", "settings": "/settings",
+  "teachers": "/teachers", "reception": "/reception",
 };
 
 export default function Sidebar({ activeSection, onSectionChange, darkMode, onToggleDark }: SidebarProps) {
