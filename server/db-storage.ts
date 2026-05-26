@@ -4,7 +4,7 @@ import {
   students, teachers, subjects, groups, enrollments, subscriptions,
   sessions, attendance, grades, homework, homeworkSubmissions, finances,
   studentNotes, exams, examQuestions, examSubmissions, automationRules,
-  automationLogs, expenses, appSettings,
+  automationLogs, expenses, appSettings, users,
 } from "@shared/schema";
 import type {
   Student, InsertStudent, Teacher, InsertTeacher, Subject, InsertSubject,
@@ -14,7 +14,7 @@ import type {
   Finance, InsertFinance, StudentNote, InsertStudentNote, Exam, InsertExam,
   ExamQuestion, InsertExamQuestion, ExamSubmission, InsertExamSubmission,
   AutomationRule, InsertAutomationRule, AutomationLog, InsertAutomationLog,
-  Expense, InsertExpense,
+  Expense, InsertExpense, User, InsertUser,
 } from "@shared/schema";
 
 export class DatabaseStorage {
@@ -450,5 +450,27 @@ export class DatabaseStorage {
   }
   async deleteExpense(id: string): Promise<boolean> {
     const r = await db.delete(expenses).where(eq(expenses.id, id)).returning(); return r.length > 0;
+  }
+
+  // ── Users (Auth) ───────────────────────────────────────────────────────────
+  async getAllUsers(): Promise<User[]> { return db.select().from(users); }
+  async getUserById(id: string): Promise<User | undefined> {
+    const r = await db.select().from(users).where(eq(users.id, id)); return r[0];
+  }
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const r = await db.select().from(users).where(eq(users.email, email)); return r[0];
+  }
+  async createUser(input: InsertUser): Promise<User> {
+    const r = await db.insert(users).values(input).returning(); return r[0];
+  }
+  async updateUser(id: string, u: Partial<User>): Promise<User> {
+    const r = await db.update(users).set(u).where(eq(users.id, id)).returning();
+    if (!r[0]) throw new Error("User not found"); return r[0];
+  }
+  async deleteUser(id: string): Promise<boolean> {
+    const r = await db.delete(users).where(eq(users.id, id)).returning(); return r.length > 0;
+  }
+  async countUsers(): Promise<number> {
+    const r = await db.select().from(users); return r.length;
   }
 }

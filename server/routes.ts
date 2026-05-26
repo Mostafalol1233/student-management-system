@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema, insertGroupSchema, insertHomeworkSchema, insertHomeworkSubmissionSchema, insertFinanceSchema, insertTeacherSchema, insertSubjectSchema, insertEnrollmentSchema, insertSubscriptionSchema } from "@shared/schema";
+import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema, insertGroupSchema, insertHomeworkSchema, insertHomeworkSubmissionSchema, insertFinanceSchema, insertTeacherSchema, insertSubjectSchema, insertEnrollmentSchema, insertSubscriptionSchema, loginSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import { createRequire } from "module";
@@ -10,6 +10,7 @@ const archiver = require("archiver");
 import path from "path";
 import fs from "fs";
 import { whatsappService } from "./whatsapp-service";
+import { signToken, hashPassword, comparePassword, requireAuth, requireRole } from "./auth";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -86,6 +87,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Stats error:", error);
       res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  // ── Auth routes ───────────────────────────────────────────────────────────
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = loginSchema.parse(req.body);
+      const user = await storage.getUserByEmail(email);
+      if (!user || user.status !== "active") {
+        return res.status(401).json({ message: "البريد الإلكتروني أو كلمة المرور غير صحيحة" });
+      }
+      const valid = await comparePassword(password, user.password);
+      if (!valid) return res.status(401).json({ message: "البريد الإلكتروني أو كلمة المرور غير صحيحة" });
+      const payload = { userId: user.id, email: user.email, role: user.role as any, name: user.name, teacherId: user.teacherId };
+      const token = signToken(payload);
+      const { password: _, ...safeUser } = user;
+      res.json({ token, user: { ...safeUser, role: user.role } });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUserById(req.user!.userId);
+      if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/auth/logout", (_req, res) => { res.json({ message: "تم تسجيل الخروج بنجاح" }); });
+
+  // ── User management (admin only) ───────────────────────────────────────────
+  app.get("/api/users", requireRole("admin"), async (_req, res) => {
+    try {
+      const all = await storage.getAllUsers();
+      res.json(all.map(({ password: _, ...u }) => u));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/users", requireRole("admin"), async (req, res) => {
+    try {
+      const data = insertUserSchema.parse(req.body);
+      const hashed = await hashPassword(data.password);
+      const user = await storage.createUser({ ...data, password: hashed });
+      const { password: _, ...safe } = user;
+      res.status(201).json(safe);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.put("/api/users/:id", requireRole("admin"), async (req, res) => {
+    try {
+      const updates = req.body;
+      if (updates.password) updates.password = await hashPassword(updates.password);
+      const user = await storage.updateUser(req.params.id, updates);
+      const { password: _, ...safe } = user;
+      res.json(safe);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/users/:id", requireRole("admin"), async (req, res) => {
+    try {
+      const ok = await storage.deleteUser(req.params.id);
+      if (!ok) return res.status(404).json({ message: "المستخدم غير موجود" });
+      res.status(204).send();
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Seed demo data ─────────────────────────────────────────────────────────
+  app.post("/api/seed", async (_req, res) => {
+    try {
+      const userCount = await storage.countUsers();
+      if (userCount > 0) return res.json({ message: "البيانات التجريبية موجودة بالفعل", skipped: true });
+
+      // Create demo users
+      const adminPass = await hashPassword("admin123");
+      const recPass = await hashPassword("rec123");
+      const teachPass = await hashPassword("teach123");
+      const accPass = await hashPassword("acc123");
+
+      await storage.createUser({ name: "مدير النظام", email: "admin@school.edu", password: adminPass, role: "admin" });
+      await storage.createUser({ name: "موظف الاستقبال", email: "reception@school.edu", password: recPass, role: "reception" });
+      await storage.createUser({ name: "محاسب النظام", email: "accountant@school.edu", password: accPass, role: "accountant" });
+
+      // Create demo teacher
+      const teacher = await storage.createTeacher({
+        name: "أستاذ محمد أحمد", subject: "الرياضيات", phone: "01012345678",
+        email: "teacher@school.edu", salaryType: "fixed", salaryAmount: 5000,
+      });
+      await storage.createUser({ name: "أستاذ محمد أحمد", email: "teacher@school.edu", password: teachPass, role: "teacher", teacherId: teacher.id });
+
+      // Create demo subject
+      await storage.createSubject({ name: "الرياضيات", teacherId: teacher.id, price: 300, sessionsPerMonth: 8, color: "#6366f1" });
+      await storage.createSubject({ name: "الفيزياء", teacherId: teacher.id, price: 300, sessionsPerMonth: 8, color: "#0ea5e9" });
+
+      // Create demo group
+      const group = await storage.createGroup({
+        name: "مجموعة أولى ثانوي أ", gradeLevel: "أول ثانوي", section: "أ",
+        subject: "الرياضيات", teacherId: teacher.id, capacity: 20, color: "#6366f1",
+      });
+
+      // Create demo students
+      const studentData = [
+        { name: "أحمد محمود علي", guardianPhone: "01099887766", gradeLevel: "أول ثانوي", section: "أ" },
+        { name: "سارة خالد حسن", guardianPhone: "01088776655", gradeLevel: "أول ثانوي", section: "أ" },
+        { name: "عمر يوسف إبراهيم", guardianPhone: "01077665544", gradeLevel: "أول ثانوي", section: "ب" },
+        { name: "منى إبراهيم محمد", guardianPhone: "01066554433", gradeLevel: "أول ثانوي", section: "أ" },
+        { name: "كريم عبدالله سالم", guardianPhone: "01055443322", gradeLevel: "ثاني ثانوي", section: "أ" },
+        { name: "نور الدين عبدالرحمن", guardianPhone: "01044332211", gradeLevel: "ثاني ثانوي", section: "ب" },
+        { name: "ياسمين طارق فهمي", guardianPhone: "01033221100", gradeLevel: "أول ثانوي", section: "أ" },
+        { name: "محمد علي حسين", guardianPhone: "01122334455", gradeLevel: "أول ثانوي", section: "ب" },
+      ];
+
+      const createdStudents: any[] = [];
+      for (const s of studentData) {
+        const student = await storage.createStudent({ ...s, address: "القاهرة" } as any);
+        createdStudents.push(student);
+      }
+
+      // Add students to group
+      for (const s of createdStudents.slice(0, 6)) {
+        await storage.createEnrollment({ studentId: s.id, teacherId: teacher.id, groupId: group.id, status: "active" });
+      }
+
+      // Create demo sessions
+      const today = new Date();
+      const fmt = (d: Date) => d.toISOString().split("T")[0];
+      const session1 = await storage.createSession({
+        name: "حصة الرياضيات - المجموعة أ", date: fmt(today),
+        time: "10:00", duration: 90, groupId: group.id, teacherId: teacher.id,
+      });
+      await storage.updateSession(session1.id, { status: "completed" });
+
+      const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+      const session2 = await storage.createSession({
+        name: "حصة مراجعة شاملة", date: fmt(yesterday),
+        time: "14:00", duration: 60, groupId: group.id, teacherId: teacher.id,
+      });
+      await storage.updateSession(session2.id, { status: "completed" });
+
+      // Attendance for session1
+      for (const s of createdStudents.slice(0, 5)) {
+        await storage.createAttendance({ studentId: s.id, sessionId: session1.id, status: "present", scanMethod: "manual" });
+      }
+      await storage.createAttendance({ studentId: createdStudents[5].id, sessionId: session1.id, status: "absent", scanMethod: "manual" });
+
+      // Demo grades
+      const subjects = ["الرياضيات", "الفيزياء", "الكيمياء"];
+      const types = ["امتحان شهري", "واجب منزلي", "مشاركة صفية"];
+      for (const s of createdStudents) {
+        for (let i = 0; i < 2; i++) {
+          const score = 60 + Math.floor(Math.random() * 40);
+          await storage.createGrade({
+            studentId: s.id,
+            subject: subjects[i % subjects.length],
+            assessmentType: types[i % types.length],
+            score, totalMarks: 100, weight: 1.0,
+          });
+        }
+      }
+
+      // Demo finances
+      for (const s of createdStudents) {
+        const paid = Math.random() > 0.3 ? 300 : 0;
+        await storage.createFinance({
+          studentId: s.id, type: "subscription",
+          amount: 300, paid, dueDate: fmt(today), status: paid > 0 ? "paid" : "pending",
+        });
+      }
+
+      res.json({ message: "تم إضافة البيانات التجريبية بنجاح", counts: {
+        users: 4, teachers: 1, students: studentData.length, sessions: 2,
+        groups: 1, attendance: 6, grades: createdStudents.length * 2,
+      }});
+    } catch (e: any) {
+      console.error("Seed error:", e);
+      res.status(500).json({ message: `فشل إضافة البيانات: ${e.message}` });
     }
   });
 
