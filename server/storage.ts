@@ -13,6 +13,7 @@ import {
   type Finance, type InsertFinance,
   type StudentNote, type InsertStudentNote,
   type Exam, type InsertExam,
+  type Expense, type InsertExpense,
   type ExamQuestion, type InsertExamQuestion,
   type ExamSubmission, type InsertExamSubmission,
   type AutomationRule, type InsertAutomationRule,
@@ -139,6 +140,13 @@ export interface IStorage {
   getLogsByRule(ruleId: string): Promise<AutomationLog[]>;
   createAutomationLog(l: InsertAutomationLog): Promise<AutomationLog>;
   clearAutomationLogs(): Promise<void>;
+
+  // Expenses
+  getAllExpenses(): Promise<Expense[]>;
+  getExpense(id: string): Promise<Expense | undefined>;
+  createExpense(e: InsertExpense): Promise<Expense>;
+  updateExpense(id: string, u: Partial<Expense>): Promise<Expense>;
+  deleteExpense(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -160,6 +168,7 @@ export class MemStorage implements IStorage {
   private examSubmissions = new Map<string, ExamSubmission>();
   private automationRulesMap = new Map<string, AutomationRule>();
   private automationLogsMap = new Map<string, AutomationLog>();
+  private expensesMap = new Map<string, Expense>();
   private settings = new Map<string, string>([
     ["app_name", "نظام المدرسة"],
     ["semester_start", "2025-09-01"],
@@ -426,6 +435,26 @@ export class MemStorage implements IStorage {
     this.automationLogsMap.set(id, l); return l;
   }
   async clearAutomationLogs() { this.automationLogsMap.clear(); }
+
+  // Expenses
+  async getAllExpenses() { return Array.from(this.expensesMap.values()).sort((a, b) => b.date.localeCompare(a.date)); }
+  async getExpense(id: string) { return this.expensesMap.get(id); }
+  async createExpense(e: InsertExpense): Promise<Expense> {
+    const id = crypto.randomUUID();
+    const expense: Expense = { id, category: e.category, amount: e.amount, date: e.date, description: e.description || null, createdAt: new Date() };
+    this.expensesMap.set(id, expense);
+    return expense;
+  }
+  async updateExpense(id: string, u: Partial<Expense>): Promise<Expense> {
+    const e = this.expensesMap.get(id);
+    if (!e) throw new Error("Expense not found");
+    const updated = { ...e, ...u };
+    this.expensesMap.set(id, updated);
+    return updated;
+  }
+  async deleteExpense(id: string): Promise<boolean> {
+    return this.expensesMap.delete(id);
+  }
 }
 
 export const storage = new MemStorage();

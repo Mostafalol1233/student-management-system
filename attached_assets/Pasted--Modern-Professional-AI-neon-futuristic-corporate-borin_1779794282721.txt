@@ -1,0 +1,268 @@
+الستايل الصح غالبًا:
+“Modern Professional”
+
+مش:
+
+AI neon futuristic
+ومش:
+corporate boring harsh
+
+لازم يبقى:
+
+عملي + سريع + مريح + premium خفيف
+
+لأن المستخدم الحقيقي عندك:
+
+سكرتيرة
+مدرس
+إدارة
+كاشير
+
+دول هيستخدموه ساعات طويلة يوميًا.
+
+❌ الستايل الغلط لمنصتك
+ستايل AI / Cyberpunk
+
+اللي فيه:
+
+glow كثير
+gradients مجنونة
+animations مبالغ فيها
+glass everywhere
+ألوان نيون
+
+ده شكله حلو في Dribbble…
+بس سيء جدًا للاستخدام اليومي.
+
+بعد أسبوع:
+
+يوجع العين
+مشتت
+بطيء
+متعب
+❌ ستايل الشركات القديم جدًا
+
+اللي هو:
+
+أبيض فقط
+borders قاسية
+buttons رمادي
+UI ميت
+
+ده يخلي النظام:
+
+“قديم / حكومي”
+
+✅ الستايل المثالي ليك
+“Linear + Notion + Stripe + modern dashboards”
+
+يعني:
+
+clean
+soft shadows
+subtle colors
+rounded cards
+ممتاز للبيانات
+الشكل اللي أنصحك بيه
+1. Base Colors
+Light Mode
+background:
+#F5F7FA
+cards:
+#FFFFFF
+text:
+#111827
+muted:
+#6B7280
+Primary Color
+
+أنصح:
+
+Indigo
+أو
+Blue
+أو
+Teal
+
+مثال:
+
+#4F46E5
+
+ليه؟
+لأنه:
+
+احترافي
+مريح
+مناسب للتعليم
+2. Cards Style
+
+اعمل:
+
+rounded-xl
+shadow-sm
+border خفيف جدًا
+
+مش:
+
+glow
+glass blur قوي
+3. Sidebar
+أفضل شكل:
+Dark sidebar
+Light content area
+
+زي:
+
+Linear
+Stripe Dashboard
+Sidebar لازم:
+icons واضحة
+collapsible
+active indicator محترم
+section grouping
+4. Tables أهم حاجة
+
+أنت عندك بيانات كثير.
+
+فركز جدًا على:
+
+spacing
+sticky headers
+row hover
+filters
+pagination
+
+الجدول هو قلب النظام.
+
+5. Status Colors
+
+لازم ثابتة في كل المشروع.
+
+مثال:
+Success → Green
+Warning → Amber
+Error → Red
+Info → Blue
+Draft → Gray
+6. Buttons
+استخدم:
+Primary
+
+filled
+
+Secondary
+
+outline
+
+Danger
+
+red subtle
+
+بلاش:
+gradients قوية
+shiny buttons
+animated borders
+7. Animations
+نعم لكن subtle جدًا.
+
+استخدم:
+
+fade
+scale 0.98
+smooth transitions
+
+مش:
+
+bouncing
+spinning
+flashy
+8. Typography
+
+أنصح:
+
+Cairo
+أو
+IBM Plex Sans Arabic
+hierarchy:
+titles واضحة
+muted descriptions
+numbers كبيرة
+9. Dashboard Design
+
+بدل cards كثيرة جدًا.
+
+اعمل:
+
+KPIs فوق
+charts بالنص
+activity feed
+quick actions
+10. Density مهم جدًا
+
+أنظمة الإدارة لازم تكون:
+
+Compact شويه
+
+مش huge spacing زي مواقع الـ portfolio.
+
+أفضل Style فعليًا ليك
+تخيل mix بين:
+Notion
+Linear
+Stripe Dashboard
+Slack Admin
+أهم قاعدة UI لمنصتك
+
+اسأل نفسك:
+
+“هل السكرتيرة تقدر تستخدمه بسرعة؟”
+
+مش:
+
+“هل شكله futuristic؟”
+
+لأن:
+
+السرعة
+الوضوح
+سهولة الوصول
+قلة الضغط البصري
+
+أهم 100 مرة من الـ flashy design.
+
+حاجة مهمة جدًا
+
+اعمل:
+
+Design System موحد
+
+يعني:
+
+نفس buttons
+نفس cards
+نفس spacing
+نفس badges
+نفس modals
+Stack ممتاز للـ UI
+
+أنصحك جدًا بـ:
+
+shadcn/ui
+Tailwind CSS
+Lucide Icons
+Framer Motion
+لو عايز الشكل “Premium فعلًا”
+
+اعمل:
+
+clean UI
+excellent spacing
+smooth UX
+realtime feel
+fast interactions
+
+مش:
+
+مؤثرات كثيرة
+ألوان كثيرة
+glow everywhere

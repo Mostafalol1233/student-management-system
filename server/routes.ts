@@ -1127,6 +1127,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch { res.status(500).json({ message: "Failed to delete subscription" }); }
   });
 
+  // ── Expenses ────────────────────────────────────────────────────────────
+  app.get("/api/expenses", async (_req, res) => {
+    try { res.json(await storage.getAllExpenses()); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/expenses", async (req, res) => {
+    try {
+      const { insertExpenseSchema } = await import("@shared/schema");
+      const data = insertExpenseSchema.parse(req.body);
+      res.status(201).json(await storage.createExpense(data));
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.put("/api/expenses/:id", async (req, res) => {
+    try { res.json(await storage.updateExpense(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/expenses/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteExpense(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Expense not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete expense" }); }
+  });
+
+  // ── Salary report ────────────────────────────────────────────────────────
+  app.get("/api/teachers/:id/salary-report", async (req, res) => {
+    try {
+      const teacher = await storage.getTeacher(req.params.id);
+      if (!teacher) return res.status(404).json({ message: "Teacher not found" });
+      const enrollments = await storage.getAllEnrollments();
+      const finances = await storage.getAllFinances();
+      const activeStudents = enrollments.filter(e => e.teacherId === teacher.id && e.status === "active");
+      const studentCount = activeStudents.length;
+      const studentIds = activeStudents.map(e => e.studentId);
+      const teacherRevenue = finances
+        .filter(f => studentIds.includes(f.studentId) && f.status === "paid")
+        .reduce((s, f) => s + (f.paid ?? 0), 0);
+      let expectedSalary = 0;
+      if (teacher.salaryType === "fixed") expectedSalary = teacher.salaryAmount || 0;
+      else if (teacher.salaryType === "per_student") expectedSalary = (teacher.salaryAmount || 0) * studentCount;
+      else if (teacher.salaryType === "percentage") expectedSalary = teacherRevenue * ((teacher.salaryAmount || 0) / 100);
+      res.json({ teacher, studentCount, teacherRevenue, expectedSalary, paid: 0, remaining: expectedSalary });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

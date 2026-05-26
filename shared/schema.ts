@@ -192,6 +192,25 @@ export const examSubmissions = pgTable("exam_submissions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const expenses = pgTable("expenses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  category: text("category").notNull(), // rent | electricity | salaries | printing | maintenance | other
+  amount: real("amount").notNull(),
+  date: text("date").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entity: text("entity").notNull(), // student | finance | grade | teacher
+  entityId: varchar("entity_id"),
+  action: text("action").notNull(), // create | update | delete
+  actor: text("actor").default("admin"),
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const automationRules = pgTable("automation_rules", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -219,6 +238,8 @@ export const automationLogs = pgTable("automation_logs", {
 });
 
 // Insert schemas
+export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export const insertStudentSchema = createInsertSchema(students).omit({ id: true, createdAt: true, code: true, qrPath: true, status: true });
 export const insertTeacherSchema = createInsertSchema(teachers).omit({ id: true, createdAt: true, status: true });
 export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true, createdAt: true });
@@ -237,6 +258,12 @@ export const insertExamQuestionSchema = createInsertSchema(examQuestions).omit({
 export const insertExamSubmissionSchema = createInsertSchema(examSubmissions).omit({ id: true, createdAt: true, gradedAt: true });
 export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({ id: true, createdAt: true, runCount: true, lastRun: true, status: true });
 export const insertAutomationLogSchema = createInsertSchema(automationLogs).omit({ id: true, createdAt: true });
+
+// Expense & AuditLog types
+export type Expense = typeof expenses.$inferSelect;
+export type InsertExpense = z.infer<typeof insertExpenseSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 
 // Types
 export type Student = typeof students.$inferSelect;

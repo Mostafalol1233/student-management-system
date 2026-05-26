@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertTeacherSchema, type Teacher, type InsertTeacher, type Enrollment } from "@shared/schema";
+import { insertTeacherSchema, type Teacher, type InsertTeacher, type Enrollment, type Finance } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,22 +13,103 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Edit, Users, Phone, BookOpen, DollarSign, Search } from "lucide-react";
+import { Plus, Trash2, Edit, Users, BookOpen, DollarSign, Search, TrendingUp, CheckCircle, Clock } from "lucide-react";
 
 const SALARY_TYPES = [
-  { value: "fixed", label: "مرتب ثابت" },
-  { value: "per_student", label: "نسبة لكل طالب" },
-  { value: "percentage", label: "نسبة من الإيرادات" },
+  { value: "fixed",       label: "مرتب ثابت",           hint: "مبلغ ثابت كل شهر" },
+  { value: "per_student", label: "مبلغ لكل طالب",        hint: "× عدد الطلاب النشطين" },
+  { value: "percentage",  label: "نسبة من الإيرادات %",   hint: "% من إيرادات طلابه" },
 ];
+
+interface SalaryReport {
+  teacher: Teacher;
+  studentCount: number;
+  teacherRevenue: number;
+  expectedSalary: number;
+  paid: number;
+  remaining: number;
+}
+
+function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose: () => void }) {
+  const { data: report, isLoading } = useQuery<SalaryReport>({
+    queryKey: ["/api/teachers", teacher.id, "salary-report"],
+    queryFn: async () => {
+      const r = await fetch(`/api/teachers/${teacher.id}/salary-report`);
+      return r.json();
+    },
+  });
+
+  if (isLoading) return <div className="p-8 text-center text-sm text-muted-foreground">جاري الحساب...</div>;
+  if (!report) return null;
+
+  const salaryTypeLabel = SALARY_TYPES.find(t => t.value === teacher.salaryType)?.label ?? "";
+  const formulaDesc =
+    teacher.salaryType === "fixed"       ? `${teacher.salaryAmount || 0} ج / شهر` :
+    teacher.salaryType === "per_student" ? `${teacher.salaryAmount || 0} ج × ${report.studentCount} طالب` :
+    `${teacher.salaryAmount || 0}% × ${report.teacherRevenue.toLocaleString()} ج إيرادات`;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50">
+        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+          <span className="text-primary font-bold">{teacher.name.slice(0, 1)}</span>
+        </div>
+        <div>
+          <div className="font-semibold">{teacher.name}</div>
+          <div className="text-xs text-muted-foreground">{teacher.subject} · {salaryTypeLabel}</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: "عدد الطلاب النشطين",  value: `${report.studentCount} طالب`,       icon: Users,       cls: "text-blue-600" },
+          { label: "إيرادات طلابه",        value: `${report.teacherRevenue.toLocaleString()} ج`, icon: TrendingUp, cls: "text-emerald-600" },
+          { label: "المرتب المستحق",        value: `${report.expectedSalary.toLocaleString()} ج`, icon: DollarSign, cls: "text-primary" },
+          { label: "المتبقي للصرف",         value: `${report.remaining.toLocaleString()} ج`,      icon: Clock,      cls: report.remaining > 0 ? "text-amber-600" : "text-emerald-600" },
+        ].map(s => (
+          <div key={s.label} className="rounded-xl border bg-card p-3 flex items-center gap-2.5">
+            <s.icon size={14} className={s.cls} />
+            <div>
+              <div className="font-semibold text-sm">{s.value}</div>
+              <div className="text-[10px] text-muted-foreground">{s.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border bg-muted/30 p-4 space-y-1.5">
+        <div className="text-xs font-semibold text-muted-foreground">حساب المرتب</div>
+        <div className="text-sm font-mono">{formulaDesc}</div>
+        <div className="text-lg font-bold text-primary">{report.expectedSalary.toLocaleString()} ج</div>
+      </div>
+
+      {report.remaining > 0 ? (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200">
+          <Clock size={13} className="text-amber-600" />
+          <span className="text-xs text-amber-700 dark:text-amber-400">المتبقي للصرف: {report.remaining.toLocaleString()} ج</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200">
+          <CheckCircle size={13} className="text-emerald-600" />
+          <span className="text-xs text-emerald-700 dark:text-emerald-400">تم صرف المرتب بالكامل</span>
+        </div>
+      )}
+
+      <Button variant="outline" className="w-full" onClick={onClose}>إغلاق</Button>
+    </div>
+  );
+}
 
 export default function TeacherManagement() {
   const [showForm, setShowForm] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [salaryTeacher, setSalaryTeacher] = useState<Teacher | null>(null);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
 
   const { data: teachers = [], isLoading } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
   const { data: enrollments = [] } = useQuery<Enrollment[]>({ queryKey: ["/api/enrollments"] });
+  const { data: finances = [] } = useQuery<Finance[]>({ queryKey: ["/api/finances"] });
 
   const form = useForm<InsertTeacher>({
     resolver: zodResolver(insertTeacherSchema),
@@ -37,32 +118,20 @@ export default function TeacherManagement() {
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertTeacher) => (await apiRequest("POST", "/api/teachers", data)).json(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
-      form.reset();
-      setShowForm(false);
-      toast({ title: "تم إضافة المدرس" });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/teachers"] }); form.reset(); setShowForm(false); toast({ title: "تم إضافة المدرس" }); },
     onError: (e: any) => toast({ title: "فشل", description: e.message, variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Teacher> }) =>
       (await apiRequest("PUT", `/api/teachers/${id}`, data)).json(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
-      setEditingTeacher(null);
-      toast({ title: "تم تحديث بيانات المدرس" });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/teachers"] }); setEditingTeacher(null); toast({ title: "تم تحديث المدرس" }); },
     onError: (e: any) => toast({ title: "فشل", description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/teachers/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
-      toast({ title: "تم حذف المدرس" });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/teachers"] }); toast({ title: "تم حذف المدرس" }); },
   });
 
   const filtered = teachers.filter(t =>
@@ -70,51 +139,48 @@ export default function TeacherManagement() {
     t.subject.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getStudentCount = (teacherId: string) =>
-    enrollments.filter(e => e.teacherId === teacherId && e.status === "active").length;
+  const getStudentCount = (tid: string) => enrollments.filter(e => e.teacherId === tid && e.status === "active").length;
 
-  const getSalaryLabel = (type: string, amount: number) => {
-    if (type === "fixed") return `${amount} ج / شهر`;
-    if (type === "per_student") return `${amount} ج / طالب`;
-    return `${amount}%`;
+  const calcSalary = (t: Teacher) => {
+    const sc = getStudentCount(t.id);
+    const studentIds = enrollments.filter(e => e.teacherId === t.id && e.status === "active").map(e => e.studentId);
+    const rev = finances.filter(f => studentIds.includes(f.studentId) && f.status === "paid").reduce((s, f) => s + (f.paid ?? 0), 0);
+    if (t.salaryType === "fixed") return t.salaryAmount || 0;
+    if (t.salaryType === "per_student") return (t.salaryAmount || 0) * sc;
+    return rev * ((t.salaryAmount || 0) / 100);
+  };
+
+  const getSalaryDisplay = (t: Teacher) => {
+    if (t.salaryType === "fixed") return `${(t.salaryAmount || 0).toLocaleString()} ج/شهر`;
+    if (t.salaryType === "per_student") return `${(t.salaryAmount || 0)} ج × ${getStudentCount(t.id)} طالب`;
+    return `${t.salaryAmount || 0}% من الإيرادات`;
   };
 
   const openEdit = (teacher: Teacher) => {
     setEditingTeacher(teacher);
-    form.reset({
-      name: teacher.name, subject: teacher.subject,
-      phone: teacher.phone || "", email: teacher.email || "",
-      salaryType: teacher.salaryType, salaryAmount: teacher.salaryAmount || 0,
-      notes: teacher.notes || "",
-    });
+    form.reset({ name: teacher.name, subject: teacher.subject, phone: teacher.phone || "", email: teacher.email || "", salaryType: teacher.salaryType, salaryAmount: teacher.salaryAmount || 0, notes: teacher.notes || "" });
+    setShowForm(true);
   };
 
   const handleSubmit = (data: InsertTeacher) => {
-    if (editingTeacher) {
-      updateMutation.mutate({ id: editingTeacher.id, data });
-    } else {
-      createMutation.mutate(data);
-    }
+    if (editingTeacher) updateMutation.mutate({ id: editingTeacher.id, data });
+    else createMutation.mutate(data);
   };
 
-  const totalSalary = teachers.reduce((sum, t) => {
-    if (t.salaryType === "fixed") return sum + (t.salaryAmount || 0);
-    if (t.salaryType === "per_student") return sum + (t.salaryAmount || 0) * getStudentCount(t.id);
-    return sum;
-  }, 0);
+  const totalSalary = teachers.reduce((sum, t) => sum + calcSalary(t), 0);
 
   return (
     <div className="space-y-6">
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: "إجمالي المدرسين", value: teachers.length, icon: Users },
-          { label: "إجمالي الطلاب", value: enrollments.filter(e => e.status === "active").length, icon: BookOpen },
-          { label: "إجمالي المرتبات / شهر", value: `${totalSalary.toLocaleString()} ج`, icon: DollarSign },
+          { label: "إجمالي المدرسين",       value: teachers.length,                                   icon: Users },
+          { label: "إجمالي الطلاب النشطين", value: enrollments.filter(e => e.status === "active").length, icon: BookOpen },
+          { label: "إجمالي المرتبات / شهر", value: `${totalSalary.toLocaleString()} ج`,              icon: DollarSign },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center">
-              <s.icon size={16} className="text-muted-foreground" />
+              <s.icon size={15} className="text-muted-foreground" />
             </div>
             <div>
               <div className="text-xl font-bold">{s.value}</div>
@@ -128,19 +194,19 @@ export default function TeacherManagement() {
       <div className="flex items-center justify-between gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث باسم المدرس أو المادة..." className="pl-8 h-8 text-sm" />
+          <Input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="بحث باسم المدرس أو المادة..." className="pl-8 h-8 text-sm" />
         </div>
-        <Button onClick={() => { setEditingTeacher(null); form.reset({ name: "", subject: "", phone: "", email: "", salaryType: "fixed", salaryAmount: 0, notes: "" }); setShowForm(true); }} data-testid="button-add-teacher">
-          <Plus size={14} className="mr-2" />
-          إضافة مدرس
+        <Button onClick={() => { setEditingTeacher(null); form.reset(); setShowForm(true); }} data-testid="button-add-teacher">
+          <Plus size={14} className="mr-2" />إضافة مدرس
         </Button>
       </div>
 
-      {/* Teachers table */}
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">جاري التحميل...</div>
+            <div className="space-y-3 p-4">{[1,2,3].map(i => <div key={i} className="skeleton h-12 rounded-lg" />)}</div>
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground">
               <Users size={28} className="mx-auto mb-2 opacity-20" />
@@ -152,50 +218,59 @@ export default function TeacherManagement() {
                 <TableRow className="bg-muted/40">
                   <TableHead className="text-xs">المدرس</TableHead>
                   <TableHead className="text-xs">المادة</TableHead>
-                  <TableHead className="text-xs">رقم الهاتف</TableHead>
+                  <TableHead className="text-xs">الهاتف</TableHead>
                   <TableHead className="text-xs">الطلاب</TableHead>
                   <TableHead className="text-xs">المرتب</TableHead>
+                  <TableHead className="text-xs">المستحق</TableHead>
                   <TableHead className="text-xs">الحالة</TableHead>
                   <TableHead className="text-xs text-left">إجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map(teacher => (
-                  <TableRow key={teacher.id} className="hover:bg-muted/20" data-testid={`row-teacher-${teacher.id}`}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-primary text-xs font-semibold">{teacher.name.slice(0, 1)}</span>
+                {filtered.map(teacher => {
+                  const expected = calcSalary(teacher);
+                  return (
+                    <TableRow key={teacher.id} className="hover:bg-muted/20" data-testid={`row-teacher-${teacher.id}`}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span className="text-primary text-[11px] font-semibold">{teacher.name.slice(0, 1)}</span>
+                          </div>
+                          <span className="font-medium text-sm">{teacher.name}</span>
                         </div>
-                        <span className="font-medium text-sm">{teacher.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{teacher.subject}</Badge></TableCell>
-                    <TableCell className="text-sm text-muted-foreground font-mono">{teacher.phone || "—"}</TableCell>
-                    <TableCell>
-                      <span className="text-sm font-semibold">{getStudentCount(teacher.id)}</span>
-                      <span className="text-xs text-muted-foreground"> طالب</span>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{getSalaryLabel(teacher.salaryType, teacher.salaryAmount || 0)}</TableCell>
-                    <TableCell>
-                      <Badge variant={teacher.status === "active" ? "secondary" : "outline"} className="text-xs">
-                        {teacher.status === "active" ? "نشط" : "غير نشط"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => { openEdit(teacher); setShowForm(true); }} data-testid={`button-edit-teacher-${teacher.id}`}>
-                          <Edit size={13} />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
-                          onClick={() => { if (confirm(`حذف ${teacher.name}?`)) deleteMutation.mutate(teacher.id); }}
-                          data-testid={`button-delete-teacher-${teacher.id}`}>
-                          <Trash2 size={13} />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell><Badge variant="outline" className="text-[10px]">{teacher.subject}</Badge></TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono">{teacher.phone || "—"}</TableCell>
+                      <TableCell>
+                        <span className="text-sm font-semibold">{getStudentCount(teacher.id)}</span>
+                        <span className="text-xs text-muted-foreground"> طالب</span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{getSalaryDisplay(teacher)}</TableCell>
+                      <TableCell className="font-mono text-sm font-semibold">{expected.toLocaleString()} ج</TableCell>
+                      <TableCell>
+                        <Badge variant={teacher.status === "active" ? "secondary" : "outline"} className="text-[10px]">
+                          {teacher.status === "active" ? "نشط" : "غير نشط"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-primary"
+                            onClick={() => setSalaryTeacher(teacher)} data-testid={`button-salary-${teacher.id}`}>
+                            <DollarSign size={11} className="mr-1" />تسوية
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(teacher)} data-testid={`button-edit-teacher-${teacher.id}`}>
+                            <Edit size={12} />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                            onClick={() => { if (confirm(`حذف ${teacher.name}?`)) deleteMutation.mutate(teacher.id); }}
+                            data-testid={`button-delete-teacher-${teacher.id}`}>
+                            <Trash2 size={12} />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -203,7 +278,7 @@ export default function TeacherManagement() {
       </Card>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={showForm} onOpenChange={open => { setShowForm(open); if (!open) setEditingTeacher(null); }}>
+      <Dialog open={showForm} onOpenChange={o => { setShowForm(o); if (!o) setEditingTeacher(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingTeacher ? "تعديل بيانات المدرس" : "إضافة مدرس جديد"}</DialogTitle>
@@ -212,67 +287,57 @@ export default function TeacherManagement() {
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>الاسم *</FormLabel>
+                  <FormItem><FormLabel>الاسم *</FormLabel>
                     <FormControl><Input placeholder="اسم المدرس" {...field} data-testid="input-teacher-name" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
+                    <FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="subject" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>المادة *</FormLabel>
-                    <FormControl><Input placeholder="الرياضيات، الفيزياء..." {...field} data-testid="input-teacher-subject" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <FormItem><FormLabel>المادة *</FormLabel>
+                    <FormControl><Input placeholder="الرياضيات..." {...field} data-testid="input-teacher-subject" /></FormControl>
+                    <FormMessage /></FormItem>
                 )} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="phone" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>الهاتف</FormLabel>
-                    <FormControl><Input placeholder="+201234567890" type="tel" {...field} value={field.value || ""} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <FormItem><FormLabel>الهاتف</FormLabel>
+                    <FormControl><Input type="tel" placeholder="+201234567890" {...field} value={field.value || ""} /></FormControl>
+                    <FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="email" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>البريد الإلكتروني</FormLabel>
-                    <FormControl><Input placeholder="teacher@school.com" type="email" {...field} value={field.value || ""} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <FormItem><FormLabel>البريد الإلكتروني</FormLabel>
+                    <FormControl><Input type="email" placeholder="teacher@school.com" {...field} value={field.value || ""} /></FormControl>
+                    <FormMessage /></FormItem>
                 )} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="salaryType" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>نوع المرتب</FormLabel>
+                  <FormItem><FormLabel>نوع المرتب</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                      </FormControl>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
-                        {SALARY_TYPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                        {SALARY_TYPES.map(s => (
+                          <SelectItem key={s.value} value={s.value}>
+                            <div>{s.label}<div className="text-[10px] text-muted-foreground">{s.hint}</div></div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
+                    </Select><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="salaryAmount" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>المبلغ</FormLabel>
-                    <FormControl><Input type="number" placeholder="0" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
+                    <FormLabel>
+                      {form.watch("salaryType") === "percentage" ? "النسبة %" : "المبلغ (ج)"}
+                    </FormLabel>
+                    <FormControl><Input type="number" placeholder="0" {...field} onChange={e => field.onChange(parseFloat(e.target.value)||0)} /></FormControl>
+                    <FormMessage /></FormItem>
                 )} />
               </div>
               <FormField control={form.control} name="notes" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>ملاحظات</FormLabel>
+                <FormItem><FormLabel>ملاحظات</FormLabel>
                   <FormControl><Input placeholder="ملاحظات اختيارية..." {...field} value={field.value || ""} /></FormControl>
-                  <FormMessage />
-                </FormItem>
+                  <FormMessage /></FormItem>
               )} />
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-1">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>إلغاء</Button>
                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-teacher">
                   {editingTeacher ? "حفظ التعديلات" : "إضافة المدرس"}
@@ -280,6 +345,16 @@ export default function TeacherManagement() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Salary Settlement Dialog */}
+      <Dialog open={!!salaryTeacher} onOpenChange={o => { if (!o) setSalaryTeacher(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>تسوية المرتب</DialogTitle>
+          </DialogHeader>
+          {salaryTeacher && <SalarySettlementPanel teacher={salaryTeacher} onClose={() => setSalaryTeacher(null)} />}
         </DialogContent>
       </Dialog>
     </div>

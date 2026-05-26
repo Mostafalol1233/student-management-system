@@ -1,0 +1,2 @@
+- [Professionalization features](professionalization.md) — which items from the list are done and which were intentionally deferred
+- [Expenses schema](expenses-schema.md) — new expenses + auditLogs tables, insert schemas, routes, and storage patterns

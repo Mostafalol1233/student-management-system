@@ -1,45 +1,47 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertSessionSchema, type Session, type InsertSession } from "@shared/schema";
+import { insertSessionSchema, type Session, type InsertSession, type Group, type Teacher } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { CalendarPlus, QrCode, StopCircle, Play, Clock, CheckCircle2, Calendar } from "lucide-react";
+import { CalendarPlus, Play, StopCircle, CheckCircle2, Calendar, XCircle, Clock, Users } from "lucide-react";
 
-const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
-  scheduled: { label: "مجدولة", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", icon: Calendar },
-  active: { label: "نشطة", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", icon: Play },
-  completed: { label: "مكتملة", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400", icon: CheckCircle2 },
+const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: any }> = {
+  scheduled: { label: "مجدولة",  cls: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400",     icon: Calendar },
+  active:    { label: "نشطة",    cls: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400", icon: Play },
+  completed: { label: "مكتملة",  cls: "bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400",        icon: CheckCircle2 },
+  cancelled: { label: "ملغاة",   cls: "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400",           icon: XCircle },
 };
 
 export default function SessionManagement() {
   const { toast } = useToast();
 
-  const { data: sessions = [] } = useQuery<Session[]>({ queryKey: ["/api/sessions"] });
+  const { data: sessions = [], isLoading } = useQuery<Session[]>({ queryKey: ["/api/sessions"] });
   const { data: activeSession } = useQuery<Session | null>({ queryKey: ["/api/sessions/active"] });
+  const { data: groups = [] } = useQuery<Group[]>({ queryKey: ["/api/groups"] });
+  const { data: teachers = [] } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
 
   const form = useForm<InsertSession>({
     resolver: zodResolver(insertSessionSchema),
     defaultValues: {
-      name: "",
-      date: new Date().toISOString().split("T")[0],
-      time: new Date().toTimeString().slice(0, 5),
-      duration: 60,
+      name: "", date: new Date().toISOString().split("T")[0],
+      time: new Date().toTimeString().slice(0, 5), duration: 60,
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertSession) => (await apiRequest("POST", "/api/sessions", data)).json(),
-    onSuccess: (session: Session) => {
+    onSuccess: (s: Session) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       form.reset({ name: "", date: new Date().toISOString().split("T")[0], time: new Date().toTimeString().slice(0, 5), duration: 60 });
-      toast({ title: "✅ تم إنشاء الحصة", description: session.name });
+      toast({ title: `تم إنشاء الحصة: ${s.name}` });
     },
     onError: (e: any) => toast({ title: "فشل الإنشاء", description: e.message, variant: "destructive" }),
   });
@@ -50,87 +52,111 @@ export default function SessionManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions/active"] });
-      toast({ title: "✅ تم تحديث الحصة" });
+      toast({ title: "تم تحديث الحصة" });
     },
   });
 
-  const formatTime = (time: string) => {
-    try {
-      const [h, m] = time.split(":");
-      const d = new Date();
-      d.setHours(+h, +m);
-      return d.toLocaleTimeString("ar-SA", { hour: "numeric", minute: "2-digit", hour12: true });
-    } catch { return time; }
+  const setStatus = (session: Session, status: string) => {
+    // If activating a session, deactivate others first
+    if (status === "active" && activeSession && activeSession.id !== session.id) {
+      updateMutation.mutate({ id: activeSession.id, updates: { status: "completed" } });
+    }
+    updateMutation.mutate({ id: session.id, updates: { status } });
   };
 
-  const sortedSessions = [...sessions].sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
-  const completedCount = sessions.filter(s => s.status === "completed").length;
-  const scheduledCount = sessions.filter(s => s.status === "scheduled").length;
+  const formatDuration = (min: number) => min >= 60 ? `${Math.floor(min / 60)}س ${min % 60 > 0 ? `${min % 60}د` : ""}` : `${min}د`;
+
+  const byStatus = (status: string) => sessions.filter(s => s.status === status);
+  const stats = [
+    { label: "مجدولة",  value: byStatus("scheduled").length, icon: Calendar,    cls: "text-blue-600"    },
+    { label: "نشطة",    value: byStatus("active").length,    icon: Play,         cls: "text-emerald-600" },
+    { label: "مكتملة",  value: byStatus("completed").length, icon: CheckCircle2, cls: "text-gray-500"    },
+    { label: "ملغاة",   value: byStatus("cancelled").length, icon: XCircle,      cls: "text-red-500"     },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: "إجمالي الحصص", value: sessions.length, color: "text-foreground" },
-          { label: "مجدولة", value: scheduledCount, color: "text-blue-600" },
-          { label: "مكتملة", value: completedCount, color: "text-emerald-600" },
-        ].map(s => (
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
+        {stats.map(s => (
           <div key={s.label} className="stat-card">
-            <div>
-              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-xs text-muted-foreground">{s.label}</div>
-            </div>
+            <s.icon size={16} className={s.cls} />
+            <div><div className="text-lg font-bold">{s.value}</div><div className="text-xs text-muted-foreground">{s.label}</div></div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Create Form */}
+      {/* Active session banner */}
+      {activeSession && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/10 dark:border-emerald-900/30">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot flex-shrink-0" />
+          <div className="flex-1">
+            <div className="font-semibold text-emerald-800 dark:text-emerald-300">{activeSession.name}</div>
+            <div className="text-xs text-emerald-700/70 dark:text-emerald-400/70">{activeSession.date} · {activeSession.time} · {formatDuration(activeSession.duration)}</div>
+          </div>
+          <Button size="sm" variant="outline" className="border-emerald-300 text-emerald-700"
+            onClick={() => setStatus(activeSession, "completed")}
+            data-testid="button-end-session">
+            <StopCircle size={13} className="mr-1" />إنهاء الحصة
+          </Button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Create form */}
         <Card>
           <div className="px-5 py-4 border-b flex items-center gap-2">
-            <CalendarPlus size={16} className="text-muted-foreground" />
-            <h3 className="font-semibold">إنشاء حصة جديدة</h3>
+            <CalendarPlus size={15} className="text-muted-foreground" />
+            <h3 className="font-semibold text-sm">حصة جديدة</h3>
           </div>
           <CardContent className="p-5">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+              <form onSubmit={form.handleSubmit(d => createMutation.mutate(d))} className="space-y-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>اسم الحصة *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="مثال: الرياضيات - الفصل الثاني" data-testid="input-session-name" {...field} />
-                    </FormControl>
+                  <FormItem><FormLabel>اسم الحصة *</FormLabel>
+                    <FormControl><Input placeholder="مثال: رياضيات — الصف الثالث" data-testid="input-session-name" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <FormField control={form.control} name="date" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>التاريخ *</FormLabel>
-                      <FormControl>
-                        <Input type="date" data-testid="input-session-date" {...field} />
-                      </FormControl>
+                    <FormItem><FormLabel>التاريخ *</FormLabel>
+                      <FormControl><Input type="date" data-testid="input-session-date" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="time" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الوقت *</FormLabel>
-                      <FormControl>
-                        <Input type="time" data-testid="input-session-time" {...field} />
-                      </FormControl>
+                    <FormItem><FormLabel>الوقت *</FormLabel>
+                      <FormControl><Input type="time" data-testid="input-session-time" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
                 </div>
                 <FormField control={form.control} name="duration" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>المدة (دقيقة) *</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="60" min="15" max="300" data-testid="input-session-duration"
-                        {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
-                    </FormControl>
+                  <FormItem><FormLabel>المدة (دقيقة)</FormLabel>
+                    <FormControl><Input type="number" min="15" max="300" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 60)} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="groupId" render={({ field }) => (
+                  <FormItem><FormLabel>المجموعة</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="اختر مجموعة (اختياري)" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="teacherId" render={({ field }) => (
+                  <FormItem><FormLabel>المدرس</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="اختر مدرساً (اختياري)" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -143,129 +169,102 @@ export default function SessionManagement() {
           </CardContent>
         </Card>
 
-        {/* Active Session Card */}
-        <Card className={activeSession ? "border-emerald-200 dark:border-emerald-800" : ""}>
-          <div className="px-5 py-4 border-b flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold">الحصة الحالية</h3>
+        {/* Sessions list */}
+        <div className="lg:col-span-2">
+          <Card>
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-sm">جميع الحصص</h3>
+              <Badge variant="outline">{sessions.length} حصة</Badge>
             </div>
-            {activeSession && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>
-                نشطة
-              </div>
-            )}
-          </div>
-          <CardContent className="p-5">
-            {activeSession ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
-                  <div className="font-semibold text-lg" data-testid="text-active-session-name">{activeSession.name}</div>
-                  <div className="text-sm text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
-                    <span>📅 {activeSession.date}</span>
-                    <span>⏰ {formatTime(activeSession.time)}</span>
-                    <span>⏱️ {activeSession.duration} دقيقة</span>
-                  </div>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">جاري التحميل...</div>
+              ) : sessions.length === 0 ? (
+                <div className="p-10 text-center text-muted-foreground">
+                  <Calendar size={28} className="mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">لا توجد حصص بعد</p>
                 </div>
-                <Button
-                  className="w-full bg-red-500 hover:bg-red-600 text-white"
-                  onClick={() => updateMutation.mutate({ id: activeSession.id, updates: { status: "completed" } })}
-                  disabled={updateMutation.isPending}
-                  data-testid="button-end-session"
-                >
-                  <StopCircle size={14} className="mr-2" />
-                  إنهاء الحصة
-                </Button>
-              </div>
-            ) : (
-              <div className="text-center py-10 text-muted-foreground">
-                <CalendarPlus size={40} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm font-medium">لا توجد حصة نشطة</p>
-                <p className="text-xs mt-1">أنشئ حصة وابدأها لتسجيل الحضور</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Sessions History */}
-      <Card>
-        <div className="px-5 py-4 border-b flex items-center gap-2">
-          <Clock size={16} className="text-muted-foreground" />
-          <h3 className="font-semibold">سجل الحصص</h3>
-          <Badge variant="secondary">{sessions.length}</Badge>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="text-xs">الحصة</TableHead>
+                      <TableHead className="text-xs">التاريخ والوقت</TableHead>
+                      <TableHead className="text-xs">المدة</TableHead>
+                      <TableHead className="text-xs">الحالة</TableHead>
+                      <TableHead className="text-xs text-left">إجراءات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sessions.sort((a, b) => b.date.localeCompare(a.date)).map(session => {
+                      const cfg = STATUS_CONFIG[session.status] || STATUS_CONFIG.scheduled;
+                      const Icon = cfg.icon;
+                      const teacher = teachers.find(t => t.id === session.teacherId);
+                      const group = groups.find(g => g.id === session.groupId);
+                      return (
+                        <TableRow key={session.id} data-testid={`session-row-${session.id}`} className="hover:bg-muted/20">
+                          <TableCell>
+                            <div className="font-medium text-sm">{session.name}</div>
+                            {(teacher || group) && (
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {teacher && <span>أ. {teacher.name}</span>}
+                                {teacher && group && " · "}
+                                {group && <span>{group.name}</span>}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {session.date}<br />{session.time}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock size={10} />
+                              {formatDuration(session.duration)}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium ${cfg.cls}`}>
+                              <Icon size={10} />{cfg.label}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {session.status === "scheduled" && (
+                                <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                  onClick={() => setStatus(session, "active")} data-testid={`button-start-session-${session.id}`}>
+                                  <Play size={11} className="mr-1" />بدء
+                                </Button>
+                              )}
+                              {session.status === "active" && (
+                                <Button size="sm" variant="outline" className="h-7 text-xs"
+                                  onClick={() => setStatus(session, "completed")} data-testid={`button-complete-session-${session.id}`}>
+                                  <CheckCircle2 size={11} className="mr-1" />إنهاء
+                                </Button>
+                              )}
+                              {(session.status === "scheduled" || session.status === "active") && (
+                                <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:text-red-600"
+                                  onClick={() => setStatus(session, "cancelled")} data-testid={`button-cancel-session-${session.id}`}>
+                                  <XCircle size={11} />
+                                </Button>
+                              )}
+                              {session.status === "cancelled" && (
+                                <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-500"
+                                  onClick={() => setStatus(session, "scheduled")}>
+                                  <Calendar size={11} className="mr-1" />إعادة
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </div>
-        <CardContent className="p-0">
-          {sessions.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">لم يتم إنشاء حصص بعد</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>الحصة</TableHead>
-                    <TableHead>التاريخ والوقت</TableHead>
-                    <TableHead>المدة</TableHead>
-                    <TableHead>الحالة</TableHead>
-                    <TableHead>إجراءات</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedSessions.map((session) => {
-                    const cfg = statusConfig[session.status] || statusConfig.scheduled;
-                    const Icon = cfg.icon;
-                    return (
-                      <TableRow key={session.id} className="hover:bg-muted/30" data-testid={`row-session-${session.id}`}>
-                        <TableCell className="font-medium text-sm" data-testid={`text-session-name-${session.id}`}>
-                          {session.name}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {session.date} · {formatTime(session.time)}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {session.duration} دقيقة
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${cfg.color}`} data-testid={`badge-session-status-${session.id}`}>
-                            <Icon size={11} />
-                            {cfg.label}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {session.status === "scheduled" && (
-                            <Button
-                              size="sm"
-                              onClick={() => updateMutation.mutate({ id: session.id, updates: { status: "active" } })}
-                              disabled={updateMutation.isPending || !!activeSession}
-                              className="h-7 text-xs"
-                              data-testid={`button-start-${session.id}`}
-                            >
-                              <Play size={12} className="mr-1" />
-                              بدء
-                            </Button>
-                          )}
-                          {session.status === "active" && (
-                            <Button
-                              size="sm" variant="outline"
-                              onClick={() => updateMutation.mutate({ id: session.id, updates: { status: "completed" } })}
-                              disabled={updateMutation.isPending}
-                              className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50"
-                              data-testid={`button-end-${session.id}`}
-                            >
-                              <StopCircle size={12} className="mr-1" />
-                              إنهاء
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }
