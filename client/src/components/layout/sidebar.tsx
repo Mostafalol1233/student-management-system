@@ -1,9 +1,11 @@
+import { useRef } from "react";
 import {
   GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3,
   MessageCircle, LayoutDashboard, Moon, Sun, Users, BookOpen,
   DollarSign, TrendingUp, Calendar, ClipboardList, Settings, UserCog, ConciergeBell,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useSettings } from "@/hooks/use-settings";
 import type { ActiveSection } from "@/pages/dashboard";
 
 interface SidebarProps {
@@ -77,10 +79,21 @@ const paths: Record<ActiveSection, string> = {
 
 export default function Sidebar({ activeSection, onSectionChange, darkMode, onToggleDark }: SidebarProps) {
   const [, setLocation] = useLocation();
+  const navRef = useRef<HTMLElement>(null);
+  const { get } = useSettings();
+
+  const centerName = get("app_name", "نظام المدرسة");
+  const logoUrl = get("logo_url", "");
+  const tagline = get("app_tagline", "Center Management");
 
   const handleNav = (id: ActiveSection) => {
+    // Preserve sidebar scroll position
+    const scrollTop = navRef.current?.scrollTop ?? 0;
     setLocation(paths[id]);
     onSectionChange(id);
+    requestAnimationFrame(() => {
+      if (navRef.current) navRef.current.scrollTop = scrollTop;
+    });
   };
 
   return (
@@ -96,24 +109,28 @@ export default function Sidebar({ activeSection, onSectionChange, darkMode, onTo
         className="flex items-center gap-3 px-4 py-[15px] flex-shrink-0"
         style={{ borderBottom: "1px solid hsl(var(--sidebar-border))" }}
       >
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: "hsl(var(--sidebar-primary) / 0.2)" }}
-        >
-          <GraduationCap size={14} style={{ color: "hsl(var(--sidebar-primary))" }} />
-        </div>
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" className="w-7 h-7 rounded-lg object-contain flex-shrink-0" />
+        ) : (
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 font-bold text-xs"
+            style={{ background: "hsl(var(--sidebar-primary))", color: "hsl(var(--sidebar-primary-foreground))" }}
+          >
+            {centerName.charAt(0) || "M"}
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-semibold leading-tight truncate" style={{ color: "hsl(var(--sidebar-foreground))" }}>
-            نظام المدرسة
+            {centerName}
           </div>
           <div className="text-[10px] leading-tight mt-0.5 truncate" style={{ color: "hsl(var(--sidebar-foreground) / 0.3)" }}>
-            Center Management
+            {tagline || "Center Management"}
           </div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-4">
+      <nav ref={navRef} className="flex-1 px-2 py-3 overflow-y-auto space-y-4" style={{ scrollBehavior: "auto" }}>
         {menuGroups.map((group) => (
           <div key={group.label}>
             <div
@@ -131,6 +148,7 @@ export default function Sidebar({ activeSection, onSectionChange, darkMode, onTo
                     key={item.id}
                     data-testid={`nav-${item.id}`}
                     onClick={() => handleNav(item.id)}
+                    tabIndex={-1}
                     className={`sidebar-nav-item ${isActive ? "active" : ""}`}
                   >
                     <Icon size={14} className="flex-shrink-0" />
@@ -154,6 +172,7 @@ export default function Sidebar({ activeSection, onSectionChange, darkMode, onTo
         <button
           onClick={onToggleDark}
           data-testid="button-toggle-dark"
+          tabIndex={-1}
           className="sidebar-nav-item w-full"
         >
           {darkMode
@@ -168,12 +187,16 @@ export default function Sidebar({ activeSection, onSectionChange, darkMode, onTo
           className="flex items-center gap-2 px-3 py-2 rounded-md mt-1"
           style={{ background: "hsl(var(--sidebar-accent))" }}
         >
-          <div
-            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-[10px]"
-            style={{ background: "hsl(var(--sidebar-primary))" }}
-          >
-            م
-          </div>
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" className="w-6 h-6 rounded-full object-contain flex-shrink-0" />
+          ) : (
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-[10px]"
+              style={{ background: "hsl(var(--sidebar-primary))", color: "hsl(var(--sidebar-primary-foreground))" }}
+            >
+              {centerName.charAt(0) || "M"}
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <div
               className="text-[12px] font-semibold leading-tight truncate"

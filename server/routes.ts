@@ -1423,6 +1423,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ── Backend export (ZIP download) ──────────────────────────────────────
+  app.get("/api/export/backend", async (_req, res) => {
+    try {
+      const archive = archiver("zip", { zlib: { level: 9 } });
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", "attachment; filename=\"center-m-backend.zip\"");
+      archive.pipe(res);
+
+      const root = process.cwd();
+      const includeDirs = ["server", "shared"];
+      const includeFiles = ["package.json", "drizzle.config.ts", "tsconfig.json", "vite.config.ts"];
+
+      for (const dir of includeDirs) {
+        const dirPath = path.join(root, dir);
+        if (fs.existsSync(dirPath)) {
+          archive.directory(dirPath, dir);
+        }
+      }
+      for (const file of includeFiles) {
+        const filePath = path.join(root, file);
+        if (fs.existsSync(filePath)) {
+          archive.file(filePath, { name: file });
+        }
+      }
+
+      // Add README with deployment instructions
+      const readme = `# Center M — Backend Deployment Guide
+
+## Requirements
+- Node.js 20+
+- PostgreSQL database
+
+## Setup
+1. Install dependencies:
+   npm install
+
+2. Create a .env file:
+   DATABASE_URL=postgresql://user:password@host:5432/dbname
+   SESSION_SECRET=your-secret-key-here
+   NODE_ENV=production
+   PORT=5000
+
+3. Push database schema:
+   npx drizzle-kit push
+
+4. Build and start:
+   npm run build
+   npm start
+
+## Notes
+- Default admin: admin@school.edu / admin123
+- The server runs on PORT (default 5000)
+- All data is stored in PostgreSQL
+`;
+      archive.append(readme, { name: "README.md" });
+      await archive.finalize();
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

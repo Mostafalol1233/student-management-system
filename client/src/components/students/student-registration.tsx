@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertStudentSchema, type Student, type InsertStudent } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/hooks/use-settings";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,78 +16,112 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import QRGenerator, { QRGeneratorRef } from "@/components/ui/qr-generator";
-import { Plus, Download, Upload, FileText, AlertCircle, CheckCircle, Search, Trash2, Eye, Users, UserPlus, Printer, GraduationCap } from "lucide-react";
+import { Plus, Download, Upload, FileText, AlertCircle, CheckCircle, Search, Trash2, Eye, Users, UserPlus, Printer, GraduationCap, ChevronDown, ArrowUpDown } from "lucide-react";
 
 const GRADES = ["الصف الأول", "الصف الثاني", "الصف الثالث", "الصف الرابع", "الصف الخامس", "الصف السادس", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTIONS = ["A", "B", "C", "D", "E"];
 
 function StudentIDCard({ student }: { student: Student }) {
   const qrRef = useRef<QRGeneratorRef>(null);
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const { get } = useSettings();
+  const centerName = get("app_name", "نظام المدرسة");
+  const logoUrl = get("logo_url", "");
+  const tagline = get("app_tagline", "STUDENT ACCESS CARD");
 
   return (
     <div className="flex flex-col items-center gap-4">
       {/* Printable card */}
       <div id="student-id-card" className="flex items-center justify-center">
         <div
-          className="bg-white border border-gray-200 rounded-xl overflow-hidden"
-          style={{ width: 320, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}
+          className="bg-white rounded-2xl overflow-hidden"
+          style={{ width: 300, boxShadow: "0 8px 32px rgba(0,0,0,0.14)", border: "1px solid #e5e7eb" }}
         >
-          {/* Card header stripe */}
-          <div className="h-2 bg-primary w-full" />
+          {/* Card header gradient */}
+          <div
+            className="relative px-6 pt-6 pb-8"
+            style={{ background: "linear-gradient(135deg, hsl(243,75%,59%) 0%, hsl(243,75%,45%) 100%)" }}
+          >
+            {/* Pattern overlay */}
+            <div
+              className="absolute inset-0 opacity-10"
+              style={{
+                backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)",
+                backgroundSize: "30px 30px",
+              }}
+            />
+            {/* Logo + Center name */}
+            <div className="relative flex items-center gap-3">
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1.5 flex-shrink-0" />
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold text-lg">{centerName.charAt(0)}</span>
+                </div>
+              )}
+              <div>
+                <div className="text-white font-bold text-sm leading-tight">{centerName}</div>
+                <div className="text-white/60 text-[10px] leading-tight mt-0.5">بطاقة الطالب</div>
+              </div>
+            </div>
+          </div>
 
           {/* Card body */}
-          <div className="px-6 py-5 flex flex-col items-center gap-4">
-            {/* School name */}
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <GraduationCap size={13} />
-              <span className="text-xs font-medium tracking-wide uppercase">نظام المدرسة</span>
+          <div className="px-5 pb-5 -mt-4 relative">
+            {/* White floating card with student info */}
+            <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100 mb-4">
+              <div className="text-center">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold text-xl"
+                  style={{ background: "hsl(243,75%,59%)" }}
+                >
+                  {student.name.charAt(0)}
+                </div>
+                <div className="text-base font-bold text-gray-900 leading-tight">{student.name}</div>
+                <div className="text-xs text-gray-400 mt-0.5 font-medium">{student.gradeLevel} — {student.section}</div>
+              </div>
             </div>
 
-            {/* Student name */}
-            <div className="text-center">
-              <div className="text-lg font-bold text-gray-900 leading-snug">{student.name}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{student.gradeLevel} — {student.section}</div>
-            </div>
-
-            {/* QR code */}
-            <div className="p-2 border border-gray-100 rounded-lg bg-white">
-              <QRGenerator ref={qrRef} value={student.code} size={130} studentName={student.name} />
+            {/* QR Code */}
+            <div className="flex justify-center mb-4">
+              <div className="p-2.5 border border-gray-100 rounded-xl bg-gray-50/50">
+                <QRGenerator ref={qrRef} value={student.code} size={110} studentName={student.name} />
+              </div>
             </div>
 
             {/* Student ID */}
-            <div className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 flex items-center justify-between">
-              <span className="text-xs text-gray-500 font-medium">Student ID</span>
-              <span className="text-base font-bold font-mono tracking-widest text-gray-900">
+            <div
+              className="rounded-xl px-4 py-2.5 flex items-center justify-between mb-3"
+              style={{ background: "hsl(243,75%,59%,0.06)", border: "1px solid hsl(243,75%,59%,0.15)" }}
+            >
+              <span className="text-xs text-gray-400 font-medium">Student ID</span>
+              <span className="text-base font-bold font-mono tracking-widest" style={{ color: "hsl(243,75%,59%)" }}>
                 {student.code}
               </span>
             </div>
 
             {/* Guardian phone */}
-            <div className="w-full flex items-center justify-between text-xs text-gray-400">
-              <span>ولي الأمر</span>
-              <span className="font-mono">{student.guardianPhone}</span>
-            </div>
+            {student.guardianPhone && (
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="text-gray-400">ولي الأمر</span>
+                <span className="font-mono text-gray-500">{student.guardianPhone}</span>
+              </div>
+            )}
           </div>
 
           {/* Card footer */}
-          <div className="bg-gray-50 border-t border-gray-100 px-6 py-2 text-center">
-            <span className="text-[10px] text-gray-400 tracking-wider">STUDENT ACCESS CARD</span>
+          <div className="border-t border-gray-100 px-5 py-2 text-center" style={{ background: "#fafafa" }}>
+            <span className="text-[9px] text-gray-300 tracking-widest uppercase">{tagline || "STUDENT ACCESS CARD"}</span>
           </div>
         </div>
       </div>
 
       {/* Action buttons */}
       <div className="flex gap-2 w-full">
-        <Button variant="outline" className="flex-1" onClick={handlePrint} data-testid="button-print-card">
+        <Button variant="outline" className="flex-1" onClick={() => window.print()} data-testid="button-print-card">
           <Printer size={14} className="mr-2" />
-          طباعة البطاقة
+          طباعة
         </Button>
-        <Button variant="outline" className="flex-1" onClick={() => { qrRef.current?.downloadQR(); }}
-          data-testid="button-download-qr">
+        <Button variant="outline" className="flex-1" onClick={() => qrRef.current?.downloadQR()} data-testid="button-download-qr">
           <Download size={14} className="mr-2" />
           تحميل QR
         </Button>
@@ -100,6 +135,8 @@ export default function StudentRegistration() {
   const [bulkImportResults, setBulkImportResults] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
+  const [showOptional, setShowOptional] = useState(false);
+  const [sortAlpha, setSortAlpha] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -116,7 +153,8 @@ export default function StudentRegistration() {
       queryClient.invalidateQueries({ queryKey: ["/api/students"] });
       form.reset();
       setSelectedStudent(student);
-      toast({ title: "تم تسجيل الطالب", description: `${student.name} — الكود: ${student.code}` });
+      setShowOptional(false);
+      toast({ title: "✅ تم تسجيل الطالب", description: `${student.name} — الكود: ${student.code}` });
     },
     onError: (e: any) => toast({ title: "فشل التسجيل", description: e.message, variant: "destructive" }),
   });
@@ -125,7 +163,7 @@ export default function StudentRegistration() {
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/students/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/students"] });
-      toast({ title: "تم حذف الطالب" });
+      toast({ title: "✅ تم حذف الطالب" });
     },
     onError: (e: any) => toast({ title: "فشل الحذف", description: e.message, variant: "destructive" }),
   });
@@ -141,16 +179,18 @@ export default function StudentRegistration() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/students"] });
       setBulkImportResults(result);
-      toast({ title: "تم الاستيراد الجماعي", description: `${result.successCount} طالب — ${result.errorCount} أخطاء` });
+      toast({ title: "✅ تم الاستيراد", description: `${result.successCount} طالب — ${result.errorCount} أخطاء` });
     },
     onError: (e: any) => toast({ title: "فشل الاستيراد", description: e.message, variant: "destructive" }),
   });
 
-  const filtered = students.filter(s => {
-    const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.code.includes(search);
-    const matchGrade = gradeFilter === "all" || s.gradeLevel === gradeFilter;
-    return matchSearch && matchGrade;
-  });
+  const filtered = students
+    .filter(s => {
+      const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.code.includes(search);
+      const matchGrade = gradeFilter === "all" || s.gradeLevel === gradeFilter;
+      return matchSearch && matchGrade;
+    })
+    .sort((a, b) => sortAlpha ? a.name.localeCompare(b.name, "ar") : b.name.localeCompare(a.name, "ar"));
 
   const downloadSampleCSV = () => {
     const csv = `name,guardian phone,guardian phone 2,address,grade,section\nأحمد محمد,+201234567890,+201987654321,القاهرة,Grade 10,A\nفاطمة علي,+201555666777,,الإسكندرية,Grade 11,B`;
@@ -198,6 +238,7 @@ export default function StudentRegistration() {
                   </h3>
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+                      {/* Row 1: Name + Code */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField control={form.control} name="name" render={({ field }) => (
                           <FormItem>
@@ -216,36 +257,20 @@ export default function StudentRegistration() {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField control={form.control} name="guardianPhone" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>هاتف ولي الأمر *</FormLabel>
-                            <FormControl>
-                              <Input placeholder="+201234567890" type="tel" data-testid="input-guardian-phone" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="guardianPhone2" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>هاتف ثانٍ (اختياري)</FormLabel>
-                            <FormControl>
-                              <Input placeholder="+201234567890" type="tel" data-testid="input-guardian-phone2" {...field} value={field.value || ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                      </div>
-                      <FormField control={form.control} name="address" render={({ field }) => (
+
+                      {/* Row 2: Phone */}
+                      <FormField control={form.control} name="guardianPhone" render={({ field }) => (
                         <FormItem>
-                          <FormLabel>العنوان (اختياري)</FormLabel>
+                          <FormLabel>هاتف ولي الأمر *</FormLabel>
                           <FormControl>
-                            <Input placeholder="القاهرة، مصر الجديدة" data-testid="input-address" {...field} value={field.value || ""} />
+                            <Input placeholder="+201234567890" type="tel" data-testid="input-guardian-phone" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )} />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                      {/* Row 3: Grade + Section */}
+                      <div className="grid grid-cols-2 gap-4">
                         <FormField control={form.control} name="gradeLevel" render={({ field }) => (
                           <FormItem>
                             <FormLabel>الصف الدراسي *</FormLabel>
@@ -279,8 +304,43 @@ export default function StudentRegistration() {
                           </FormItem>
                         )} />
                       </div>
+
+                      {/* Optional fields toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setShowOptional(v => !v)}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <ChevronDown size={12} className={`transition-transform ${showOptional ? "rotate-180" : ""}`} />
+                        {showOptional ? "إخفاء الحقول الإضافية" : "إضافة بيانات إضافية (هاتف 2 — العنوان)"}
+                      </button>
+
+                      {showOptional && (
+                        <div className="space-y-4 border-t pt-4">
+                          <FormField control={form.control} name="guardianPhone2" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>هاتف ثانٍ (اختياري)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="+201234567890" type="tel" data-testid="input-guardian-phone2" {...field} value={field.value || ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )} />
+                          <FormField control={form.control} name="address" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>العنوان (اختياري)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="القاهرة، مصر الجديدة" data-testid="input-address" {...field} value={field.value || ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )} />
+                        </div>
+                      )}
+
+                      {/* Submit */}
                       <div className="flex gap-3 pt-1">
-                        <Button type="button" variant="outline" onClick={() => { form.reset(); setSelectedStudent(null); }} data-testid="button-clear-form">
+                        <Button type="button" variant="outline" onClick={() => { form.reset(); setSelectedStudent(null); setShowOptional(false); }} data-testid="button-clear-form">
                           مسح
                         </Button>
                         <Button type="submit" disabled={createMutation.isPending} className="flex-1" data-testid="button-register-student">
@@ -361,7 +421,7 @@ export default function StudentRegistration() {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">لم يتم اختيار طالب</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">سجّل طالباً جديداً أو اختر طالباً من القائمة</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">سجّل طالباً جديداً أو اختر من القائمة</p>
               </div>
             </div>
           )}
@@ -376,7 +436,7 @@ export default function StudentRegistration() {
             <h3 className="font-semibold text-sm">قائمة الطلاب</h3>
             <Badge variant="secondary">{students.length}</Badge>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <div className="relative">
               <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -395,6 +455,16 @@ export default function StudentRegistration() {
                 {uniqueGrades.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSortAlpha(v => !v)}
+              className="h-8 gap-1 text-xs"
+              data-testid="button-sort-alpha"
+            >
+              <ArrowUpDown size={12} />
+              {sortAlpha ? "أ→ي" : "ي→أ"}
+            </Button>
           </div>
         </div>
         <CardContent className="p-0">
@@ -423,8 +493,8 @@ export default function StudentRegistration() {
                     <TableRow key={student.id} className="hover:bg-muted/20" data-testid={`row-student-${student.id}`}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                            <span className="text-foreground text-xs font-semibold">{student.name.slice(0, 1)}</span>
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span className="text-primary text-xs font-semibold">{student.name.slice(0, 1)}</span>
                           </div>
                           <span className="font-medium text-sm" data-testid={`text-student-name-${student.id}`}>{student.name}</span>
                         </div>

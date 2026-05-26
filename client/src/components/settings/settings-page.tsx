@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,11 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Palette, GraduationCap, Calendar, DollarSign, Save } from "lucide-react";
+import { Settings, GraduationCap, Calendar, DollarSign, Save, Upload, ImageIcon, X, Download } from "lucide-react";
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const { data: settings = {} } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
   const [local, setLocal] = useState<Record<string, string>>({});
 
@@ -28,6 +29,23 @@ export default function SettingsPage() {
   const set = (key: string, value: string) => setLocal(prev => ({ ...prev, [key]: value }));
   const get = (key: string, fallback = "") => local[key] ?? fallback;
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "نوع ملف غير صحيح", description: "يرجى اختيار صورة", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target?.result as string;
+      set("logo_url", base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const logoUrl = get("logo_url");
+
   return (
     <div className="max-w-3xl space-y-6">
       <Tabs defaultValue="general">
@@ -39,14 +57,88 @@ export default function SettingsPage() {
         </TabsList>
 
         {/* General */}
-        <TabsContent value="general" className="mt-4">
+        <TabsContent value="general" className="mt-4 space-y-4">
+          {/* Identity Card */}
           <Card>
-            <div className="px-5 py-4 border-b"><h3 className="font-semibold">إعدادات عامة</h3></div>
+            <div className="px-5 py-4 border-b">
+              <h3 className="font-semibold">هوية المركز</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">الاسم واللوجو يظهران في الشريط الجانبي وبطاقات الطلاب</p>
+            </div>
             <CardContent className="p-5 space-y-5">
+              {/* Logo Upload */}
+              <div className="space-y-3">
+                <Label>لوجو المركز</Label>
+                <div className="flex items-center gap-4">
+                  {/* Logo preview */}
+                  <div
+                    className="w-16 h-16 rounded-xl border-2 border-dashed flex items-center justify-center flex-shrink-0 overflow-hidden"
+                    style={{ borderColor: logoUrl ? "hsl(var(--primary))" : "hsl(var(--border))" }}
+                  >
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                        <ImageIcon size={20} />
+                        <span className="text-[10px]">لا يوجد</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoChange}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => logoInputRef.current?.click()}
+                      data-testid="button-upload-logo"
+                    >
+                      <Upload size={13} />
+                      رفع لوجو
+                    </Button>
+                    {logoUrl && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-destructive hover:text-destructive"
+                        onClick={() => set("logo_url", "")}
+                      >
+                        <X size={12} />
+                        حذف اللوجو
+                      </Button>
+                    )}
+                    <p className="text-xs text-muted-foreground">PNG أو JPG — بحد أقصى 2 ميجا</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
               <div className="space-y-2">
-                <Label>اسم المنصة / السنتر</Label>
-                <Input value={get("app_name", "نظام المدرسة")} onChange={e => set("app_name", e.target.value)} placeholder="اسم السنتر" data-testid="input-app-name" />
-                <p className="text-xs text-muted-foreground">يظهر في الشريط الجانبي وعنوان المتصفح</p>
+                <Label>اسم المركز / السنتر</Label>
+                <Input
+                  value={get("app_name", "نظام المدرسة")}
+                  onChange={e => set("app_name", e.target.value)}
+                  placeholder="مثال: سنتر M"
+                  data-testid="input-app-name"
+                />
+                <p className="text-xs text-muted-foreground">يظهر في الشريط الجانبي وبطاقات الطلاب وعنوان المتصفح</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>الوصف / الشعار النصي (اختياري)</Label>
+                <Input
+                  value={get("app_tagline", "")}
+                  onChange={e => set("app_tagline", e.target.value)}
+                  placeholder="مثال: تعليم احترافي لمستقبل مشرق"
+                  data-testid="input-app-tagline"
+                />
               </div>
 
               <Separator />
@@ -54,9 +146,18 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label>اللون الأساسي</Label>
                 <div className="flex items-center gap-3">
-                  <input type="color" value={get("primary_color", "#3b82f6")} onChange={e => set("primary_color", e.target.value)}
-                    className="w-10 h-10 rounded-lg cursor-pointer border border-border" data-testid="input-primary-color" />
-                  <Input value={get("primary_color", "#3b82f6")} onChange={e => set("primary_color", e.target.value)} className="font-mono w-32" />
+                  <input
+                    type="color"
+                    value={get("primary_color", "#6366f1")}
+                    onChange={e => set("primary_color", e.target.value)}
+                    className="w-10 h-10 rounded-lg cursor-pointer border border-border"
+                    data-testid="input-primary-color"
+                  />
+                  <Input
+                    value={get("primary_color", "#6366f1")}
+                    onChange={e => set("primary_color", e.target.value)}
+                    className="font-mono w-32"
+                  />
                   <span className="text-xs text-muted-foreground">اضغط لفتح منتقي الألوان</span>
                 </div>
               </div>
@@ -66,7 +167,7 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>عملة الرسوم</Label>
-                  <Input value={get("currency", "ج")} onChange={e => set("currency", e.target.value)} placeholder="ج / جنيه / EGP" data-testid="input-currency" />
+                  <Input value={get("currency", "جنيه")} onChange={e => set("currency", e.target.value)} placeholder="جنيه / EGP" data-testid="input-currency" />
                 </div>
                 <div className="space-y-2">
                   <Label>رمز الدولة (واتساب)</Label>
@@ -80,18 +181,19 @@ export default function SettingsPage() {
         {/* Grading */}
         <TabsContent value="grading" className="mt-4">
           <Card>
-            <div className="px-5 py-4 border-b"><h3 className="font-semibold">نظام التقدير</h3><p className="text-xs text-muted-foreground mt-0.5">الحد الأدنى للنسبة المئوية لكل تقدير</p></div>
+            <div className="px-5 py-4 border-b">
+              <h3 className="font-semibold">نظام التقدير</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">الحد الأدنى للنسبة المئوية لكل تقدير</p>
+            </div>
             <CardContent className="p-5 space-y-4">
               {[
-                { label: "تقدير A (ممتاز)", key: "grade_a_min", default: "90", color: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" },
-                { label: "تقدير B (جيد جدًا)", key: "grade_b_min", default: "80", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" },
-                { label: "تقدير C (جيد)", key: "grade_c_min", default: "70", color: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400" },
-                { label: "تقدير D (مقبول)", key: "grade_d_min", default: "60", color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400" },
-              ].map(({ label, key, default: def, color }) => (
+                { label: "تقدير A (ممتاز)", key: "grade_a_min", default: "90", letter: "A", color: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" },
+                { label: "تقدير B (جيد جدًا)", key: "grade_b_min", default: "80", letter: "B", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" },
+                { label: "تقدير C (جيد)", key: "grade_c_min", default: "70", letter: "C", color: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400" },
+                { label: "تقدير D (مقبول)", key: "grade_d_min", default: "60", letter: "D", color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400" },
+              ].map(({ label, key, default: def, letter, color }) => (
                 <div key={key} className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center font-bold text-sm flex-shrink-0`}>
-                    {key.replace("grade_", "").replace("_min", "").toUpperCase()}
-                  </div>
+                  <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center font-bold text-sm flex-shrink-0`}>{letter}</div>
                   <Label className="flex-1 font-normal">{label}</Label>
                   <div className="flex items-center gap-2">
                     <Input type="number" min="0" max="100" value={get(key, def)} onChange={e => set(key, e.target.value)}
@@ -168,9 +270,36 @@ export default function SettingsPage() {
       </Tabs>
 
       {/* Save Button */}
-      <Button className="w-full" size="lg" onClick={() => saveMutation.mutate(local)} disabled={saveMutation.isPending} data-testid="button-save-settings">
-        <Save size={16} className="mr-2" />{saveMutation.isPending ? "جاري الحفظ..." : "حفظ جميع الإعدادات"}
+      <Button
+        className="w-full"
+        size="lg"
+        onClick={() => saveMutation.mutate(local)}
+        disabled={saveMutation.isPending}
+        data-testid="button-save-settings"
+      >
+        <Save size={16} className="mr-2" />
+        {saveMutation.isPending ? "جاري الحفظ..." : "حفظ جميع الإعدادات"}
       </Button>
+
+      {/* Backend Export */}
+      <div className="border rounded-xl p-5 space-y-3" style={{ borderColor: "hsl(var(--border))" }}>
+        <div>
+          <h3 className="font-semibold text-sm">تصدير الباك-إيند</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            حمّل ملف ZIP يحتوي على كود الباك-إيند كاملاً مع تعليمات النشر على أي سيرفر Node.js
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={() => { window.location.href = "/api/export/backend"; }}
+          data-testid="button-export-backend"
+        >
+          <Download size={14} />
+          تحميل ZIP للنشر
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/layout/sidebar";
+import { OnboardingGate } from "@/components/onboarding/tour";
 import Header from "@/components/layout/header";
 import StudentRegistration from "@/components/students/student-registration";
 import SessionManagement from "@/components/sessions/session-management";
@@ -104,6 +105,7 @@ export default function Dashboard({ initialSection = "overview", ...props }: Das
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
+      <OnboardingGate onNavigate={handleSectionChange} />
       <Sidebar
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
