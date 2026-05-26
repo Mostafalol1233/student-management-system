@@ -4,9 +4,9 @@ import { storage } from "./storage";
 import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema, insertGroupSchema, insertHomeworkSchema, insertHomeworkSubmissionSchema, insertFinanceSchema, insertTeacherSchema, insertSubjectSchema, insertEnrollmentSchema, insertSubscriptionSchema, loginSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const archiver = require("archiver");
+import { createRequire as _createRequire } from "module";
+const _require = _createRequire(import.meta.url);
+const archiver: any = _require("archiver");
 import path from "path";
 import fs from "fs";
 import { whatsappService } from "./whatsapp-service";
@@ -1432,52 +1432,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       archive.pipe(res);
 
       const root = process.cwd();
-      const includeDirs = ["server", "shared"];
-      const includeFiles = ["package.json", "drizzle.config.ts", "tsconfig.json", "vite.config.ts"];
 
-      for (const dir of includeDirs) {
-        const dirPath = path.join(root, dir);
-        if (fs.existsSync(dirPath)) {
-          archive.directory(dirPath, dir);
-        }
-      }
-      for (const file of includeFiles) {
-        const filePath = path.join(root, file);
-        if (fs.existsSync(filePath)) {
-          archive.file(filePath, { name: file });
+      // Include the pre-built backend/ folder (ready-to-run .js files)
+      const backendDir = path.join(root, "backend");
+      if (fs.existsSync(backendDir)) {
+        for (const file of fs.readdirSync(backendDir)) {
+          const filePath = path.join(backendDir, file);
+          if (fs.statSync(filePath).isFile()) {
+            archive.file(filePath, { name: file });
+          }
         }
       }
 
-      // Add README with deployment instructions
-      const readme = `# Center M — Backend Deployment Guide
-
-## Requirements
-- Node.js 20+
-- PostgreSQL database
-
-## Setup
-1. Install dependencies:
-   npm install
-
-2. Create a .env file:
-   DATABASE_URL=postgresql://user:password@host:5432/dbname
-   SESSION_SECRET=your-secret-key-here
-   NODE_ENV=production
-   PORT=5000
-
-3. Push database schema:
-   npx drizzle-kit push
-
-4. Build and start:
-   npm run build
-   npm start
-
-## Notes
-- Default admin: admin@school.edu / admin123
-- The server runs on PORT (default 5000)
-- All data is stored in PostgreSQL
-`;
-      archive.append(readme, { name: "README.md" });
       await archive.finalize();
     } catch (e: any) {
       res.status(500).json({ message: e.message });
