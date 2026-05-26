@@ -667,6 +667,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch { res.status(500).json({ message: "Failed to delete finance record" }); }
   });
 
+  // ── Homework: submissions by student ─────────────────────────────────────
+  app.get("/api/homework/submissions/student/:studentId", async (req, res) => {
+    try { res.json(await storage.getSubmissionsByStudent(req.params.studentId)); }
+    catch { res.status(500).json({ message: "Failed to fetch student submissions" }); }
+  });
+
+  app.get("/api/homework/:homeworkId/submissions", async (req, res) => {
+    try { res.json(await storage.getSubmissionsByHomework(req.params.homeworkId)); }
+    catch { res.status(500).json({ message: "Failed to fetch submissions" }); }
+  });
+
+  // ── Grades by student ─────────────────────────────────────────────────────
+  app.get("/api/grades/student/:studentId", async (req, res) => {
+    try { res.json(await storage.getGradesByStudent(req.params.studentId)); }
+    catch { res.status(500).json({ message: "Failed to fetch grades" }); }
+  });
+
+  // ── Student Notes ─────────────────────────────────────────────────────────
+  app.get("/api/student-notes/:studentId", async (req, res) => {
+    try { res.json(await storage.getNotesByStudent(req.params.studentId)); }
+    catch { res.status(500).json({ message: "Failed to fetch notes" }); }
+  });
+
+  app.post("/api/student-notes", async (req, res) => {
+    try {
+      const { studentId, content, type } = req.body;
+      if (!studentId || !content) return res.status(400).json({ message: "studentId and content required" });
+      res.status(201).json(await storage.createNote({ studentId, content, type: type || "general" }));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/student-notes/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteNote(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Note not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete note" }); }
+  });
+
+  // ── Exams ─────────────────────────────────────────────────────────────────
+  app.get("/api/exams", async (_req, res) => {
+    try { res.json(await storage.getAllExams()); }
+    catch { res.status(500).json({ message: "Failed to fetch exams" }); }
+  });
+
+  app.get("/api/exams/:id", async (req, res) => {
+    try {
+      const exam = await storage.getExam(req.params.id);
+      if (!exam) return res.status(404).json({ message: "Exam not found" });
+      res.json(exam);
+    } catch { res.status(500).json({ message: "Failed to fetch exam" }); }
+  });
+
+  app.post("/api/exams", async (req, res) => {
+    try {
+      const { title, subject, groupId, date, duration, description } = req.body;
+      if (!title || !subject || !date) return res.status(400).json({ message: "title, subject, date required" });
+      res.status(201).json(await storage.createExam({ title, subject, groupId: groupId === "all" ? null : (groupId || null), date, duration: duration || 60, description: description || null }));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put("/api/exams/:id", async (req, res) => {
+    try { res.json(await storage.updateExam(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/exams/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteExam(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Exam not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete exam" }); }
+  });
+
+  // ── Exam Questions ────────────────────────────────────────────────────────
+  app.get("/api/exams/:examId/questions", async (req, res) => {
+    try { res.json(await storage.getExamQuestions(req.params.examId)); }
+    catch { res.status(500).json({ message: "Failed to fetch questions" }); }
+  });
+
+  app.post("/api/exams/:examId/questions", async (req, res) => {
+    try {
+      const { question, type, options, correctAnswer, marks, orderIndex } = req.body;
+      if (!question) return res.status(400).json({ message: "question required" });
+      res.status(201).json(await storage.createExamQuestion({ examId: req.params.examId, question, type: type || "short", options: options || null, correctAnswer: correctAnswer || null, marks: marks || 5, orderIndex: orderIndex || 0 }));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/exam-questions/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteExamQuestion(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Question not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete question" }); }
+  });
+
+  // ── Exam Submissions ──────────────────────────────────────────────────────
+  app.get("/api/exams/:examId/submissions", async (req, res) => {
+    try { res.json(await storage.getExamSubmissions(req.params.examId)); }
+    catch { res.status(500).json({ message: "Failed to fetch submissions" }); }
+  });
+
+  app.post("/api/exam-submissions", async (req, res) => {
+    try {
+      const { examId, studentId, score, status } = req.body;
+      if (!examId || !studentId) return res.status(400).json({ message: "examId and studentId required" });
+      res.status(201).json(await storage.createExamSubmission({ examId, studentId, score: score ?? null, status: status || "pending" }));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put("/api/exam-submissions/:id", async (req, res) => {
+    try { res.json(await storage.updateExamSubmission(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  app.get("/api/settings", async (_req, res) => {
+    try { res.json(await storage.getAllSettings()); }
+    catch { res.status(500).json({ message: "Failed to fetch settings" }); }
+  });
+
+  app.get("/api/settings/:key", async (req, res) => {
+    try {
+      const value = await storage.getSetting(req.params.key);
+      if (value === undefined) return res.status(404).json({ message: "Setting not found" });
+      res.json({ key: req.params.key, value });
+    } catch { res.status(500).json({ message: "Failed to fetch setting" }); }
+  });
+
+  app.put("/api/settings/:key", async (req, res) => {
+    try {
+      const { value } = req.body;
+      if (value === undefined) return res.status(400).json({ message: "value required" });
+      await storage.setSetting(req.params.key, String(value));
+      res.json({ key: req.params.key, value: String(value) });
+    } catch { res.status(500).json({ message: "Failed to update setting" }); }
+  });
+
   // ── Backend ZIP Download ──────────────────────────────────────────────────
   app.get("/api/download/backend", (_req, res) => {
     try {

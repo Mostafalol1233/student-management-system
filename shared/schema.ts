@@ -97,6 +97,47 @@ export const finances = pgTable("finances", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const studentNotes = pgTable("student_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull().references(() => students.id),
+  content: text("content").notNull(),
+  type: text("type").notNull().default("general"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const exams = pgTable("exams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  subject: text("subject").notNull(),
+  groupId: varchar("group_id"),
+  date: text("date").notNull(),
+  duration: integer("duration").default(60),
+  status: text("status").notNull().default("draft"),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const examQuestions = pgTable("exam_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  examId: varchar("exam_id").notNull().references(() => exams.id),
+  question: text("question").notNull(),
+  type: text("type").notNull().default("short"),
+  options: text("options"),
+  correctAnswer: text("correct_answer"),
+  marks: integer("marks").notNull().default(5),
+  orderIndex: integer("order_index").default(0),
+});
+
+export const examSubmissions = pgTable("exam_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  examId: varchar("exam_id").notNull().references(() => exams.id),
+  studentId: varchar("student_id").notNull().references(() => students.id),
+  score: integer("score"),
+  status: text("status").notNull().default("pending"),
+  gradedAt: timestamp("graded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertStudentSchema = createInsertSchema(students).omit({ id: true, createdAt: true, code: true, qrPath: true, status: true });
 export const insertGroupSchema = createInsertSchema(groups).omit({ id: true, createdAt: true });
@@ -106,6 +147,10 @@ export const insertGradeSchema = createInsertSchema(grades).omit({ id: true, cre
 export const insertHomeworkSchema = createInsertSchema(homework).omit({ id: true, createdAt: true, status: true });
 export const insertHomeworkSubmissionSchema = createInsertSchema(homeworkSubmissions).omit({ id: true, submittedAt: true });
 export const insertFinanceSchema = createInsertSchema(finances).omit({ id: true, createdAt: true });
+export const insertStudentNoteSchema = createInsertSchema(studentNotes).omit({ id: true, createdAt: true });
+export const insertExamSchema = createInsertSchema(exams).omit({ id: true, createdAt: true, status: true });
+export const insertExamQuestionSchema = createInsertSchema(examQuestions).omit({ id: true });
+export const insertExamSubmissionSchema = createInsertSchema(examSubmissions).omit({ id: true, createdAt: true, gradedAt: true });
 
 // Types
 export type Student = typeof students.$inferSelect;
@@ -124,3 +169,11 @@ export type HomeworkSubmission = typeof homeworkSubmissions.$inferSelect;
 export type InsertHomeworkSubmission = z.infer<typeof insertHomeworkSubmissionSchema>;
 export type Finance = typeof finances.$inferSelect;
 export type InsertFinance = z.infer<typeof insertFinanceSchema>;
+export type StudentNote = typeof studentNotes.$inferSelect;
+export type InsertStudentNote = z.infer<typeof insertStudentNoteSchema>;
+export type Exam = typeof exams.$inferSelect;
+export type InsertExam = z.infer<typeof insertExamSchema>;
+export type ExamQuestion = typeof examQuestions.$inferSelect;
+export type InsertExamQuestion = z.infer<typeof insertExamQuestionSchema>;
+export type ExamSubmission = typeof examSubmissions.$inferSelect;
+export type InsertExamSubmission = z.infer<typeof insertExamSubmissionSchema>;

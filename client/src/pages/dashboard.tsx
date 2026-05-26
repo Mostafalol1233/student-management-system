@@ -12,6 +12,9 @@ import GroupManagement from "@/components/groups/group-management";
 import HomeworkManagement from "@/components/homework/homework-management";
 import FinanceManagement from "@/components/finance/finance-management";
 import SmartAnalytics from "@/components/analytics/smart-analytics";
+import SettingsPage from "@/components/settings/settings-page";
+import Timetable from "@/components/timetable/timetable";
+import ExamBuilder from "@/components/exams/exam-builder";
 
 export type ActiveSection =
   | "overview"
@@ -24,7 +27,10 @@ export type ActiveSection =
   | "group-management"
   | "homework-management"
   | "finance-management"
-  | "analytics";
+  | "analytics"
+  | "timetable"
+  | "exam-builder"
+  | "settings";
 
 interface DashboardProps {
   initialSection?: ActiveSection;
@@ -34,15 +40,18 @@ interface DashboardProps {
 const sectionMeta: Record<ActiveSection, { title: string; titleAr: string; description: string }> = {
   "overview": { title: "Dashboard", titleAr: "لوحة التحكم", description: "نظرة عامة على النظام والإحصائيات" },
   "student-registration": { title: "Students", titleAr: "تسجيل الطلاب", description: "إضافة وإدارة الطلاب" },
+  "group-management": { title: "Groups", titleAr: "المجموعات والشُّعَب", description: "إدارة مجموعات وشُّعَب الطلاب" },
   "session-management": { title: "Sessions", titleAr: "إدارة الحصص", description: "إنشاء وإدارة حصص الدراسة" },
+  "timetable": { title: "Timetable", titleAr: "الجدول الدراسي", description: "الجدول الأسبوعي للحصص" },
   "attendance-scanning": { title: "Attendance", titleAr: "تسجيل الحضور", description: "مسح رموز QR أو الإدخال اليدوي" },
   "grade-entry": { title: "Grades", titleAr: "إدخال الدرجات", description: "تسجيل وإدارة درجات الطلاب" },
-  "reports": { title: "Reports", titleAr: "التقارير", description: "تقارير الحضور والدرجات" },
-  "whatsapp-management": { title: "WhatsApp", titleAr: "واتساب", description: "إرسال الإشعارات عبر واتساب" },
-  "group-management": { title: "Groups", titleAr: "المجموعات والشُّعَب", description: "إدارة مجموعات وشُّعَب الطلاب" },
+  "exam-builder": { title: "Exams", titleAr: "الامتحانات", description: "بناء وإدارة الامتحانات" },
   "homework-management": { title: "Homework", titleAr: "الواجبات", description: "إدارة الواجبات والتصحيح" },
   "finance-management": { title: "Finance", titleAr: "النظام المالي", description: "الاشتراكات والدفعات والمتأخرات" },
   "analytics": { title: "Analytics", titleAr: "التحليل الذكي", description: "إحصائيات ومؤشرات أداء متقدمة" },
+  "reports": { title: "Reports", titleAr: "التقارير", description: "تقارير الحضور والدرجات" },
+  "whatsapp-management": { title: "WhatsApp", titleAr: "واتساب", description: "إرسال الإشعارات عبر واتساب" },
+  "settings": { title: "Settings", titleAr: "الإعدادات", description: "إعدادات النظام والمنصة" },
 };
 
 export default function Dashboard({ initialSection = "overview", ...props }: DashboardProps) {
@@ -58,15 +67,18 @@ export default function Dashboard({ initialSection = "overview", ...props }: Das
     switch (activeSection) {
       case "overview": return <Overview onNavigate={setActiveSection} />;
       case "student-registration": return <StudentRegistration />;
+      case "group-management": return <GroupManagement />;
       case "session-management": return <SessionManagement />;
+      case "timetable": return <Timetable />;
       case "attendance-scanning": return <AttendanceScanner />;
       case "grade-entry": return <GradeEntry />;
-      case "reports": return <Reports />;
-      case "whatsapp-management": return <WhatsAppManagement />;
-      case "group-management": return <GroupManagement />;
+      case "exam-builder": return <ExamBuilder />;
       case "homework-management": return <HomeworkManagement />;
       case "finance-management": return <FinanceManagement />;
       case "analytics": return <SmartAnalytics onNavigate={setActiveSection} />;
+      case "reports": return <Reports />;
+      case "whatsapp-management": return <WhatsAppManagement />;
+      case "settings": return <SettingsPage />;
       default: return <Overview onNavigate={setActiveSection} />;
     }
   };
