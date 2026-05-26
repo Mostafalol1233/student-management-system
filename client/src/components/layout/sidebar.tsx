@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3, MessageCircle, LayoutDashboard, Moon, Sun, ChevronLeft, ChevronRight } from "lucide-react";
+import { GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3, MessageCircle, LayoutDashboard, Moon, Sun, ChevronLeft, ChevronRight, Users, BookOpen, DollarSign, TrendingUp } from "lucide-react";
 import { useLocation } from "wouter";
 import type { ActiveSection } from "@/pages/dashboard";
 
@@ -13,34 +13,42 @@ interface SidebarProps {
 const menuItems = [
   { id: "overview" as ActiveSection, icon: LayoutDashboard, label: "لوحة التحكم", labelEn: "Dashboard" },
   { id: "student-registration" as ActiveSection, icon: UserPlus, label: "تسجيل الطلاب", labelEn: "Students" },
+  { id: "group-management" as ActiveSection, icon: Users, label: "المجموعات", labelEn: "Groups" },
   { id: "session-management" as ActiveSection, icon: CalendarPlus, label: "إدارة الحصص", labelEn: "Sessions" },
   { id: "attendance-scanning" as ActiveSection, icon: QrCode, label: "تسجيل الحضور", labelEn: "Attendance" },
   { id: "grade-entry" as ActiveSection, icon: Star, label: "إدخال الدرجات", labelEn: "Grades" },
+  { id: "homework-management" as ActiveSection, icon: BookOpen, label: "الواجبات", labelEn: "Homework" },
+  { id: "finance-management" as ActiveSection, icon: DollarSign, label: "النظام المالي", labelEn: "Finance" },
+  { id: "analytics" as ActiveSection, icon: TrendingUp, label: "التحليل الذكي", labelEn: "Analytics" },
   { id: "reports" as ActiveSection, icon: BarChart3, label: "التقارير", labelEn: "Reports" },
   { id: "whatsapp-management" as ActiveSection, icon: MessageCircle, label: "واتساب", labelEn: "WhatsApp" },
 ];
+
+const paths: Record<ActiveSection, string> = {
+  "overview": "/",
+  "student-registration": "/students",
+  "group-management": "/groups",
+  "session-management": "/sessions",
+  "attendance-scanning": "/attendance",
+  "grade-entry": "/grades",
+  "homework-management": "/homework",
+  "finance-management": "/finance",
+  "analytics": "/analytics",
+  "reports": "/reports",
+  "whatsapp-management": "/whatsapp",
+};
 
 export default function Sidebar({ activeSection, onSectionChange, darkMode, onToggleDark }: SidebarProps) {
   const [, setLocation] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
-  const paths: Record<ActiveSection, string> = {
-    "overview": "/",
-    "student-registration": "/students",
-    "session-management": "/session-management",
-    "attendance-scanning": "/attendance-scanning",
-    "grade-entry": "/grade-entry",
-    "reports": "/reports",
-    "whatsapp-management": "/whatsapp-management",
-  };
-
   return (
     <div
-      className={`flex flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-60"}`}
+      className={`flex flex-col transition-all duration-300 flex-shrink-0 ${collapsed ? "w-16" : "w-60"}`}
       style={{ background: "hsl(var(--sidebar))", borderRight: "1px solid hsl(var(--sidebar-border))" }}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between px-4 py-5 border-b" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
+      <div className="flex items-center justify-between px-4 py-5 border-b flex-shrink-0" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
         {!collapsed && (
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0">
@@ -58,29 +66,20 @@ export default function Sidebar({ activeSection, onSectionChange, darkMode, onTo
           </div>
         )}
         {!collapsed && (
-          <button
-            onClick={() => setCollapsed(true)}
-            className="p-1 rounded-md opacity-50 hover:opacity-100 transition-opacity"
-            style={{ color: "hsl(var(--sidebar-foreground))" }}
-          >
+          <button onClick={() => setCollapsed(true)} className="p-1 rounded-md opacity-50 hover:opacity-100 transition-opacity" style={{ color: "hsl(var(--sidebar-foreground))" }}>
             <ChevronLeft size={16} />
           </button>
         )}
       </div>
 
-      {/* Expand button when collapsed */}
       {collapsed && (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="p-2 mx-auto mt-2 rounded-md opacity-50 hover:opacity-100 transition-opacity"
-          style={{ color: "hsl(var(--sidebar-foreground))" }}
-        >
+        <button onClick={() => setCollapsed(false)} className="p-2 mx-auto mt-2 rounded-md opacity-50 hover:opacity-100 transition-opacity" style={{ color: "hsl(var(--sidebar-foreground))" }}>
           <ChevronRight size={16} />
         </button>
       )}
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
@@ -88,17 +87,14 @@ export default function Sidebar({ activeSection, onSectionChange, darkMode, onTo
             <button
               key={item.id}
               data-testid={`nav-${item.id}`}
-              onClick={() => {
-                setLocation(paths[item.id]);
-                onSectionChange(item.id);
-              }}
+              onClick={() => { setLocation(paths[item.id]); onSectionChange(item.id); }}
               title={collapsed ? item.label : undefined}
               className={`sidebar-nav-item w-full ${isActive ? "active" : ""} ${collapsed ? "justify-center px-2" : ""}`}
             >
-              <Icon size={18} className="flex-shrink-0" />
+              <Icon size={17} className="flex-shrink-0" />
               {!collapsed && (
                 <div className="flex-1 text-left min-w-0">
-                  <div className="truncate">{item.label}</div>
+                  <div className="truncate text-sm">{item.label}</div>
                   <div className="text-xs opacity-50 truncate">{item.labelEn}</div>
                 </div>
               )}
@@ -108,7 +104,7 @@ export default function Sidebar({ activeSection, onSectionChange, darkMode, onTo
       </nav>
 
       {/* Footer */}
-      <div className="px-2 py-3 border-t space-y-2" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
+      <div className="px-2 py-3 border-t space-y-2 flex-shrink-0" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
         <button
           onClick={onToggleDark}
           className={`sidebar-nav-item w-full ${collapsed ? "justify-center px-2" : ""}`}

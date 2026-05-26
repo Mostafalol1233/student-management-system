@@ -1,9 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema } from "@shared/schema";
+import { insertStudentSchema, insertSessionSchema, insertAttendanceSchema, insertGradeSchema, insertGroupSchema, insertHomeworkSchema, insertHomeworkSubmissionSchema, insertFinanceSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const archiver = require("archiver");
+import path from "path";
+import fs from "fs";
 import { whatsappService } from "./whatsapp-service";
 
 // Configure multer for file uploads
@@ -537,6 +542,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/whatsapp/send-grade-notification", sendBulkGradesHandler);
   app.post("/api/whatsapp/send-bulk-grades", sendBulkGradesHandler);
+
+  // ── Groups ──────────────────────────────────────────────────────────────
+  app.get("/api/groups", async (_req, res) => {
+    try { res.json(await storage.getAllGroups()); } catch { res.status(500).json({ message: "Failed to fetch groups" }); }
+  });
+
+  app.get("/api/groups/:id", async (req, res) => {
+    try {
+      const g = await storage.getGroup(req.params.id);
+      if (!g) return res.status(404).json({ message: "Group not found" });
+      res.json(g);
+    } catch { res.status(500).json({ message: "Failed to fetch group" }); }
+  });
+
+  app.post("/api/groups", async (req, res) => {
+    try {
+      const data = insertGroupSchema.parse(req.body);
+      res.status(201).json(await storage.createGroup(data));
+    } catch (e) {
+      if (e instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: e.errors });
+      res.status(500).json({ message: "Failed to create group" });
+    }
+  });
+
+  app.put("/api/groups/:id", async (req, res) => {
+    try { res.json(await storage.updateGroup(req.params.id, req.body)); }
+    catch (e: any) { res.status(e.message?.includes("not found") ? 404 : 500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/groups/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteGroup(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Group not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete group" }); }
+  });
+
+  // ── Homework ─────────────────────────────────────────────────────────────
+  app.get("/api/homework", async (_req, res) => {
+    try { res.json(await storage.getAllHomework()); } catch { res.status(500).json({ message: "Failed to fetch homework" }); }
+  });
+
+  app.post("/api/homework", async (req, res) => {
+    try {
+      const data = insertHomeworkSchema.parse(req.body);
+      res.status(201).json(await storage.createHomework(data));
+    } catch (e) {
+      if (e instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: e.errors });
+      res.status(500).json({ message: "Failed to create homework" });
+    }
+  });
+
+  app.put("/api/homework/:id", async (req, res) => {
+    try { res.json(await storage.updateHomework(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/homework/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteHomework(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Homework not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete homework" }); }
+  });
+
+  app.get("/api/homework/submissions", async (_req, res) => {
+    try {
+      const allHw = await storage.getAllHomework();
+      const allSubs: any[] = [];
+      for (const hw of allHw) {
+        const subs = await storage.getSubmissionsByHomework(hw.id);
+        allSubs.push(...subs);
+      }
+      res.json(allSubs);
+    } catch { res.status(500).json({ message: "Failed to fetch submissions" }); }
+  });
+
+  app.post("/api/homework/submissions", async (req, res) => {
+    try {
+      const data = insertHomeworkSubmissionSchema.parse(req.body);
+      res.status(201).json(await storage.createSubmission(data));
+    } catch (e) {
+      if (e instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: e.errors });
+      res.status(500).json({ message: "Failed to create submission" });
+    }
+  });
+
+  app.put("/api/homework/submissions/:id", async (req, res) => {
+    try { res.json(await storage.updateSubmission(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Finances ─────────────────────────────────────────────────────────────
+  app.get("/api/finances", async (_req, res) => {
+    try { res.json(await storage.getAllFinances()); } catch { res.status(500).json({ message: "Failed to fetch finances" }); }
+  });
+
+  app.get("/api/finances/student/:studentId", async (req, res) => {
+    try { res.json(await storage.getFinancesByStudent(req.params.studentId)); }
+    catch { res.status(500).json({ message: "Failed to fetch finances" }); }
+  });
+
+  app.post("/api/finances", async (req, res) => {
+    try {
+      const data = insertFinanceSchema.parse(req.body);
+      res.status(201).json(await storage.createFinance(data));
+    } catch (e) {
+      if (e instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: e.errors });
+      res.status(500).json({ message: "Failed to create finance record" });
+    }
+  });
+
+  app.put("/api/finances/:id", async (req, res) => {
+    try { res.json(await storage.updateFinance(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/finances/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteFinance(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Finance record not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete finance record" }); }
+  });
+
+  // ── Backend ZIP Download ──────────────────────────────────────────────────
+  app.get("/api/download/backend", (_req, res) => {
+    try {
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", "attachment; filename=student-system-backend.zip");
+      const archive = archiver("zip", { zlib: { level: 9 } });
+      archive.on("error", (err: Error) => { res.status(500).send({ error: err.message }); });
+      archive.pipe(res);
+      const rootDir = path.resolve(process.cwd());
+      // Include server files
+      archive.directory(path.join(rootDir, "server"), "server");
+      archive.directory(path.join(rootDir, "shared"), "shared");
+      // Include config files
+      for (const f of ["package.json", "tsconfig.json", "drizzle.config.ts"]) {
+        const fp = path.join(rootDir, f);
+        if (fs.existsSync(fp)) archive.file(fp, { name: f });
+      }
+      // README
+      archive.append(
+        `# Student System - Backend\n\n## Setup\n\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`\n\n## Environment Variables\n\n- \`DATABASE_URL\` — PostgreSQL connection string\n- \`PORT\` — Server port (default: 5000)\n\n## Deploy to Railway / Render\n\n1. Push this folder to GitHub\n2. Connect to Railway or Render\n3. Set DATABASE_URL env var\n4. Deploy!\n`,
+        { name: "README.md" }
+      );
+      archive.finalize();
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to create ZIP", error: err.message });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

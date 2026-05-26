@@ -8,6 +8,10 @@ import GradeEntry from "@/components/grades/grade-entry";
 import Reports from "@/components/reports/reports";
 import { WhatsAppManagement } from "@/components/whatsapp/whatsapp-management";
 import Overview from "@/components/overview/overview";
+import GroupManagement from "@/components/groups/group-management";
+import HomeworkManagement from "@/components/homework/homework-management";
+import FinanceManagement from "@/components/finance/finance-management";
+import SmartAnalytics from "@/components/analytics/smart-analytics";
 
 export type ActiveSection =
   | "overview"
@@ -16,7 +20,11 @@ export type ActiveSection =
   | "attendance-scanning"
   | "grade-entry"
   | "reports"
-  | "whatsapp-management";
+  | "whatsapp-management"
+  | "group-management"
+  | "homework-management"
+  | "finance-management"
+  | "analytics";
 
 interface DashboardProps {
   initialSection?: ActiveSection;
@@ -25,19 +33,21 @@ interface DashboardProps {
 
 const sectionMeta: Record<ActiveSection, { title: string; titleAr: string; description: string }> = {
   "overview": { title: "Dashboard", titleAr: "لوحة التحكم", description: "نظرة عامة على النظام والإحصائيات" },
-  "student-registration": { title: "Student Registration", titleAr: "تسجيل الطلاب", description: "إضافة طلاب جدد وإنشاء رموز QR" },
-  "session-management": { title: "Session Management", titleAr: "إدارة الحصص", description: "إنشاء وإدارة حصص الدراسة" },
-  "attendance-scanning": { title: "Attendance Scanning", titleAr: "تسجيل الحضور", description: "مسح رموز QR أو الإدخال اليدوي للحضور" },
-  "grade-entry": { title: "Grade Entry", titleAr: "إدخال الدرجات", description: "تسجيل وإدارة درجات الطلاب" },
-  "reports": { title: "Reports & Analytics", titleAr: "التقارير والتحليلات", description: "عرض تقارير الحضور والدرجات" },
-  "whatsapp-management": { title: "WhatsApp Management", titleAr: "إدارة واتساب", description: "إرسال الدرجات والإشعارات عبر واتساب" },
+  "student-registration": { title: "Students", titleAr: "تسجيل الطلاب", description: "إضافة وإدارة الطلاب" },
+  "session-management": { title: "Sessions", titleAr: "إدارة الحصص", description: "إنشاء وإدارة حصص الدراسة" },
+  "attendance-scanning": { title: "Attendance", titleAr: "تسجيل الحضور", description: "مسح رموز QR أو الإدخال اليدوي" },
+  "grade-entry": { title: "Grades", titleAr: "إدخال الدرجات", description: "تسجيل وإدارة درجات الطلاب" },
+  "reports": { title: "Reports", titleAr: "التقارير", description: "تقارير الحضور والدرجات" },
+  "whatsapp-management": { title: "WhatsApp", titleAr: "واتساب", description: "إرسال الإشعارات عبر واتساب" },
+  "group-management": { title: "Groups", titleAr: "المجموعات والشُّعَب", description: "إدارة مجموعات وشُّعَب الطلاب" },
+  "homework-management": { title: "Homework", titleAr: "الواجبات", description: "إدارة الواجبات والتصحيح" },
+  "finance-management": { title: "Finance", titleAr: "النظام المالي", description: "الاشتراكات والدفعات والمتأخرات" },
+  "analytics": { title: "Analytics", titleAr: "التحليل الذكي", description: "إحصائيات ومؤشرات أداء متقدمة" },
 };
 
 export default function Dashboard({ initialSection = "overview", ...props }: DashboardProps) {
   const [activeSection, setActiveSection] = useState<ActiveSection>(initialSection);
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem("darkMode") === "true";
-  });
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -53,6 +63,10 @@ export default function Dashboard({ initialSection = "overview", ...props }: Das
       case "grade-entry": return <GradeEntry />;
       case "reports": return <Reports />;
       case "whatsapp-management": return <WhatsAppManagement />;
+      case "group-management": return <GroupManagement />;
+      case "homework-management": return <HomeworkManagement />;
+      case "finance-management": return <FinanceManagement />;
+      case "analytics": return <SmartAnalytics onNavigate={setActiveSection} />;
       default: return <Overview onNavigate={setActiveSection} />;
     }
   };

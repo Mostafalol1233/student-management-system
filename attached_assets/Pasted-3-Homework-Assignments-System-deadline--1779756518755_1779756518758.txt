@@ -1,0 +1,223 @@
+3. Homework / Assignments System
+
+حاليًا عندك درجات فقط.
+
+أضف:
+
+واجبات
+deadline
+رفع ملفات
+تصحيح
+نسبة إنجاز
+
+حتى لو بسيط.
+
+4. Exams System
+
+بدل إدخال درجات فقط:
+
+اعمل:
+
+Quiz
+Midterm
+Final
+شفوي
+واجب
+
+وكل نوع له وزن.
+
+مثال:
+
+Quiz = 10%
+Final = 50%
+
+والمنصة تحسب النهائي تلقائي.
+
+5. Smart Analytics Dashboard
+
+دي نقلة جامدة جدًا.
+
+مثال:
+أكثر الطلاب غيابًا
+أكثر مادة ضعيفة
+نسبة التحسن
+Attendance heatmap
+توقع الطلاب المعرضين للهبوط
+6. إشعارات تلقائية
+
+بدل ما المدرس يبعت يدوي.
+
+أمثلة:
+الطالب غاب 3 مرات
+الدرجة نزلت
+الحصة بدأت
+واجب جديد
+قرب الامتحان
+
+عن طريق:
+
+WhatsApp
+Email
+In-app notifications
+7. QR Printable Cards
+
+اعمل:
+
+ID Card للطالب
+فيه:
+الاسم
+الكود
+QR
+المجموعة
+
+ويتطبع PDF جماعي.
+
+8. Financial System 💰
+
+لو هتبقى سنتر فعلي.
+
+أضف:
+اشتراكات
+دفعات
+متأخرات
+invoices
+receipts
+تنبيه للطلاب غير المسددين
+
+دي من أهم الحاجات تجاريًا.
+
+9. Groups / Classes
+
+بدل قائمة طلاب واحدة.
+
+مثال:
+ثالثة ثانوي A
+ثانية إعدادي B
+
+وكل:
+
+حصة
+امتحان
+تقرير
+مرتبط بمجموعة.
+10. Calendar System
+
+Calendar محترم للحصص والامتحانات.
+
+زي:
+
+Google Calendar style
+
+يعرض:
+
+الحصص
+الامتحانات
+الإجازات
+11. Offline Attendance Mode
+
+لو النت فصل.
+
+اعمل:
+
+تخزين محلي LocalStorage / IndexedDB
+Sync لما النت يرجع
+
+دي احترافية جدًا.
+
+12. AI Features 🤖
+
+دي هتميزك جدًا.
+
+أفكار:
+AI يكتب ملاحظات عن الطالب
+AI يقترح مستوى الطالب
+AI يكتشف الطلاب المعرضين للرسوب
+AI summary للحصة
+AI يولد امتحان سريع
+13. Audit Logs
+
+مهم جدًا.
+
+يعني:
+
+مين عدّل درجة
+مين حذف طالب
+إمتى اتبعت رسالة
+14. Backup & Restore
+
+زر:
+
+Export كامل
+Import كامل
+
+JSON أو ZIP.
+
+15. Real-time Features
+
+باستخدام:
+
+Socket.IO
+أمثلة:
+الحضور يحدث live
+إشعارات مباشرة
+عدد الطلاب أونلاين
+تحديث الدرجات فورًا
+تعديلات UI مهمة جدًا
+Sidebar Collapsible
+
+يبقى responsive أكثر.
+
+Mobile-first Optimization
+
+لأن غالبًا المدرس هيفتحها من الموبايل.
+
+ركز على:
+
+Scanner سريع
+Buttons كبيرة
+RTL مضبوط
+Command Palette
+
+زي:
+Ctrl + K
+
+للبحث السريع عن:
+
+طالب
+حصة
+تقرير
+إضافات احترافية جدًا
+Theme Customization
+ألوان السنتر
+Logo
+Background
+Multi-branch Support
+
+لو السنتر له فروع.
+
+File Uploads
+
+رفع:
+
+ملفات PDF
+مذكرات
+صور واجبات
+أهم 5 إضافات أراها أولوية
+
+لو هترتبهم:
+
+Groups / Classes
+Financial System
+Parent Portal
+Smart Analytics
+Automatic Notifications
+تقنيات أنصحك تضيفها
+
+لو مش موجودة:
+
+Socket.IO
+TanStack Query
+Zod
+React Hook Form
+Recharts
+Prisma
