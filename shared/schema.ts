@@ -14,7 +14,7 @@ export const students = pgTable("students", {
   section: text("section").notNull(),
   groupId: varchar("group_id"),
   qrPath: text("qr_path"),
-  status: text("status").notNull().default("active"), // active | suspended | overdue | graduated | archived
+  status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -24,7 +24,7 @@ export const teachers = pgTable("teachers", {
   subject: text("subject").notNull(),
   phone: text("phone"),
   email: text("email"),
-  salaryType: text("salary_type").notNull().default("fixed"), // fixed | per_student | percentage
+  salaryType: text("salary_type").notNull().default("fixed"),
   salaryAmount: real("salary_amount").default(0),
   notes: text("notes"),
   status: text("status").notNull().default("active"),
@@ -61,7 +61,7 @@ export const enrollments = pgTable("enrollments", {
   subjectId: varchar("subject_id"),
   teacherId: varchar("teacher_id"),
   groupId: varchar("group_id"),
-  status: text("status").notNull().default("active"), // active | suspended | completed
+  status: text("status").notNull().default("active"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -76,7 +76,7 @@ export const subscriptions = pgTable("subscriptions", {
   paid: real("paid").default(0),
   startDate: text("start_date").notNull(),
   endDate: text("end_date"),
-  status: text("status").notNull().default("active"), // active | paid | overdue | expired
+  status: text("status").notNull().default("active"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -194,7 +194,7 @@ export const examSubmissions = pgTable("exam_submissions", {
 
 export const expenses = pgTable("expenses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  category: text("category").notNull(), // rent | electricity | salaries | printing | maintenance | other
+  category: text("category").notNull(),
   amount: real("amount").notNull(),
   date: text("date").notNull(),
   description: text("description"),
@@ -203,9 +203,9 @@ export const expenses = pgTable("expenses", {
 
 export const auditLogs = pgTable("audit_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  entity: text("entity").notNull(), // student | finance | grade | teacher
+  entity: text("entity").notNull(),
   entityId: varchar("entity_id"),
-  action: text("action").notNull(), // create | update | delete
+  action: text("action").notNull(),
   actor: text("actor").default("admin"),
   details: text("details"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -237,9 +237,12 @@ export const automationLogs = pgTable("automation_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 // Insert schemas
-export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export const insertStudentSchema = createInsertSchema(students).omit({ id: true, createdAt: true, code: true, qrPath: true, status: true });
 export const insertTeacherSchema = createInsertSchema(teachers).omit({ id: true, createdAt: true, status: true });
 export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true, createdAt: true });
@@ -256,14 +259,10 @@ export const insertStudentNoteSchema = createInsertSchema(studentNotes).omit({ i
 export const insertExamSchema = createInsertSchema(exams).omit({ id: true, createdAt: true, status: true });
 export const insertExamQuestionSchema = createInsertSchema(examQuestions).omit({ id: true });
 export const insertExamSubmissionSchema = createInsertSchema(examSubmissions).omit({ id: true, createdAt: true, gradedAt: true });
+export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({ id: true, createdAt: true, runCount: true, lastRun: true, status: true });
 export const insertAutomationLogSchema = createInsertSchema(automationLogs).omit({ id: true, createdAt: true });
-
-// Expense & AuditLog types
-export type Expense = typeof expenses.$inferSelect;
-export type InsertExpense = z.infer<typeof insertExpenseSchema>;
-export type AuditLog = typeof auditLogs.$inferSelect;
-export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 
 // Types
 export type Student = typeof students.$inferSelect;
@@ -298,7 +297,12 @@ export type ExamQuestion = typeof examQuestions.$inferSelect;
 export type InsertExamQuestion = z.infer<typeof insertExamQuestionSchema>;
 export type ExamSubmission = typeof examSubmissions.$inferSelect;
 export type InsertExamSubmission = z.infer<typeof insertExamSubmissionSchema>;
+export type Expense = typeof expenses.$inferSelect;
+export type InsertExpense = z.infer<typeof insertExpenseSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AutomationRule = typeof automationRules.$inferSelect;
 export type InsertAutomationRule = z.infer<typeof insertAutomationRuleSchema>;
 export type AutomationLog = typeof automationLogs.$inferSelect;
 export type InsertAutomationLog = z.infer<typeof insertAutomationLogSchema>;
+export type AppSetting = typeof appSettings.$inferSelect;

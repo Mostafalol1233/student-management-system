@@ -18,6 +18,77 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  // ── Health check ──────────────────────────────────────────────────────────
+  app.get("/api/health", (_req, res) => {
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      env: process.env.NODE_ENV ?? "development",
+      version: "1.0.0",
+    });
+  });
+
+  // ── Dashboard stats ───────────────────────────────────────────────────────
+  app.get("/api/stats", async (_req, res) => {
+    try {
+      const [students, teachers, sessions, grades, finances, attendance] = await Promise.all([
+        storage.getAllStudents(),
+        storage.getAllTeachers(),
+        storage.getAllSessions(),
+        storage.getAllGrades(),
+        storage.getAllFinances(),
+        storage.getAllAttendance(),
+      ]);
+
+      const totalStudents = students.length;
+      const totalTeachers = teachers.length;
+      const completedSessions = sessions.filter(s => s.status === "completed").length;
+      const activeSessions = sessions.filter(s => s.status === "active").length;
+
+      const totalRevenue = finances
+        .filter(f => f.status === "paid")
+        .reduce((sum, f) => sum + (f.paid ?? 0), 0);
+      const pendingRevenue = finances
+        .filter(f => f.status === "pending")
+        .reduce((sum, f) => sum + ((f.amount ?? 0) - (f.paid ?? 0)), 0);
+
+      const ungradedCount = grades.filter(g => g.score === null || g.score === undefined).length;
+
+      const attendanceRates = students.map(s => {
+        const studentAttendance = attendance.filter(a => a.studentId === s.id);
+        const present = studentAttendance.filter(a => a.status === "present").length;
+        return studentAttendance.length > 0 ? (present / studentAttendance.length) * 100 : 100;
+      });
+      const avgAttendanceRate = attendanceRates.length > 0
+        ? attendanceRates.reduce((a, b) => a + b, 0) / attendanceRates.length
+        : 0;
+
+      const atRiskStudents = students.filter(s => {
+        const sa = attendance.filter(a => a.studentId === s.id);
+        if (sa.length < 3) return false;
+        const rate = sa.filter(a => a.status === "present").length / sa.length;
+        return rate < 0.75;
+      }).length;
+
+      res.json({
+        totalStudents,
+        totalTeachers,
+        completedSessions,
+        activeSessions,
+        totalRevenue,
+        pendingRevenue,
+        ungradedCount,
+        avgAttendanceRate: Math.round(avgAttendanceRate * 10) / 10,
+        atRiskStudents,
+      });
+    } catch (error) {
+      console.error("Stats error:", error);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
   // Student routes
   app.get("/api/students", async (req, res) => {
     try {
