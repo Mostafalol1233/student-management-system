@@ -138,6 +138,32 @@ export const examSubmissions = pgTable("exam_submissions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const automationRules = pgTable("automation_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  trigger: text("trigger").notNull(),
+  triggerConfig: text("trigger_config"),
+  messageTemplate: text("message_template").notNull(),
+  targetGroup: text("target_group"),
+  status: text("status").notNull().default("active"),
+  runCount: integer("run_count").default(0),
+  lastRun: timestamp("last_run"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const automationLogs = pgTable("automation_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ruleId: varchar("rule_id").notNull(),
+  ruleName: text("rule_name"),
+  studentId: varchar("student_id"),
+  phone: text("phone"),
+  message: text("message"),
+  status: text("status").notNull().default("sent"),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertStudentSchema = createInsertSchema(students).omit({ id: true, createdAt: true, code: true, qrPath: true, status: true });
 export const insertGroupSchema = createInsertSchema(groups).omit({ id: true, createdAt: true });
@@ -151,6 +177,8 @@ export const insertStudentNoteSchema = createInsertSchema(studentNotes).omit({ i
 export const insertExamSchema = createInsertSchema(exams).omit({ id: true, createdAt: true, status: true });
 export const insertExamQuestionSchema = createInsertSchema(examQuestions).omit({ id: true });
 export const insertExamSubmissionSchema = createInsertSchema(examSubmissions).omit({ id: true, createdAt: true, gradedAt: true });
+export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({ id: true, createdAt: true, runCount: true, lastRun: true, status: true });
+export const insertAutomationLogSchema = createInsertSchema(automationLogs).omit({ id: true, createdAt: true });
 
 // Types
 export type Student = typeof students.$inferSelect;
@@ -177,3 +205,7 @@ export type ExamQuestion = typeof examQuestions.$inferSelect;
 export type InsertExamQuestion = z.infer<typeof insertExamQuestionSchema>;
 export type ExamSubmission = typeof examSubmissions.$inferSelect;
 export type InsertExamSubmission = z.infer<typeof insertExamSubmissionSchema>;
+export type AutomationRule = typeof automationRules.$inferSelect;
+export type InsertAutomationRule = z.infer<typeof insertAutomationRuleSchema>;
+export type AutomationLog = typeof automationLogs.$inferSelect;
+export type InsertAutomationLog = z.infer<typeof insertAutomationLogSchema>;

@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { MessageCircle, CheckCircle2, XCircle, Send, RefreshCw, Clock, AlertCircle } from "lucide-react";
+import { MessageCircle, CheckCircle2, XCircle, Send, RefreshCw, Clock, AlertCircle, Zap } from "lucide-react";
 import type { Student, Grade } from "@shared/schema";
+import AutomationEngine from "./automation-engine";
 
 interface WhatsAppStatus { isConnected: boolean; state: string; }
 interface WhatsAppMessage { id: string; to: string; message: string; status: "sent" | "failed" | "pending"; timestamp: string; }
@@ -147,12 +148,13 @@ export function WhatsAppManagement() {
         </CardContent>
       </Card>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "في الانتظار", value: unsentGrades.length, icon: Clock, bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-600 dark:text-blue-400", testId: "text-unsent-count" },
-          { label: "أُرسلت", value: sentMsgCount, icon: CheckCircle2, bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400", testId: "text-sent-count" },
-          { label: "فشل الإرسال", value: failedMsgCount, icon: XCircle, bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400", testId: "text-failed-count" },
+          { label: "أُرسلت للأهل", value: sentGradesCount, icon: CheckCircle2, bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400", testId: "text-sent-count" },
+          { label: "رسائل مرسلة", value: sentMsgCount, icon: MessageCircle, bg: "bg-violet-50 dark:bg-violet-900/20", text: "text-violet-600 dark:text-violet-400", testId: "text-msg-sent-count" },
+          { label: "رسائل فاشلة", value: failedMsgCount, icon: XCircle, bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400", testId: "text-failed-count" },
         ].map(({ label, value, icon: Icon, bg, text, testId }) => (
           <div key={label} className="stat-card">
             <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center`}>
@@ -167,10 +169,14 @@ export function WhatsAppManagement() {
       </div>
 
       <Tabs defaultValue="pending">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="pending" data-testid="tab-pending">
             درجات في الانتظار
             {unsentGrades.length > 0 && <Badge className="mr-2 h-4 min-w-4 text-xs" variant="secondary">{unsentGrades.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="automation" data-testid="tab-automation">
+            <Zap size={13} className="ml-1" />
+            محرك الأتمتة
           </TabsTrigger>
           <TabsTrigger value="history" data-testid="tab-history">سجل الرسائل</TabsTrigger>
         </TabsList>
@@ -268,6 +274,11 @@ export function WhatsAppManagement() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Automation Engine */}
+        <TabsContent value="automation" className="mt-4">
+          <AutomationEngine />
         </TabsContent>
 
         {/* Message History */}

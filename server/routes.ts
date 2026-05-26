@@ -805,6 +805,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch { res.status(500).json({ message: "Failed to update setting" }); }
   });
 
+  // ── Automation Rules ──────────────────────────────────────────────────────
+  app.get("/api/automation-rules", async (_req, res) => {
+    try { res.json(await storage.getAllAutomationRules()); }
+    catch { res.status(500).json({ message: "Failed to fetch automation rules" }); }
+  });
+
+  app.get("/api/automation-rules/:id", async (req, res) => {
+    try {
+      const rule = await storage.getAutomationRule(req.params.id);
+      if (!rule) return res.status(404).json({ message: "Rule not found" });
+      res.json(rule);
+    } catch { res.status(500).json({ message: "Failed to fetch rule" }); }
+  });
+
+  app.post("/api/automation-rules", async (req, res) => {
+    try {
+      const { name, description, trigger, triggerConfig, messageTemplate, targetGroup } = req.body;
+      if (!name || !trigger || !messageTemplate) return res.status(400).json({ message: "name, trigger, messageTemplate required" });
+      res.status(201).json(await storage.createAutomationRule({ name, description: description || null, trigger, triggerConfig: triggerConfig || null, messageTemplate, targetGroup: targetGroup || null }));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.put("/api/automation-rules/:id", async (req, res) => {
+    try { res.json(await storage.updateAutomationRule(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/automation-rules/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteAutomationRule(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Rule not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Failed to delete rule" }); }
+  });
+
+  // ── Automation Rule Runner ────────────────────────────────────────────────
+  app.post("/api/automation-rules/:id/run", async (req, res) => {
+    try {
+      const rule = await storage.getAutomationRule(req.params.id);
+      if (!rule) return res.status(404).json({ message: "Rule not found" });
+      if (rule.status !== "active") return res.status(400).json({ message: "Rule is paused" });
+
+      const students = await storage.getAllStudents();
+      const appName = (await storage.getSetting("app_name")) || "نظام المدرسة";
+      let sent = 0; let skipped = 0; const logs: any[] = [];
+
+      const applyTemplate = (template: string, vars: Record<string, string>) => {
+        return template
+          .replace(/\{\{اسم_الطالب\}\}/g, vars.studentName || "")
+          .replace(/\{\{المادة\}\}/g, vars.subject || "")
+          .replace(/\{\{الدرجة\}\}/g, vars.grade || "")
+          .replace(/\{\{التاريخ\}\}/g, vars.date || new Date().toLocaleDateString("ar-SA"))
+          .replace(/\{\{اسم_المدرسة\}\}/g, appName)
+          .replace(/\{\{الحصة\}\}/g, vars.session || "")
+          .replace(/\{\{الواجب\}\}/g, vars.homework || "");
+      };
+
+      const targetStudents = rule.targetGroup
+        ? students.filter(s => s.groupId === rule.targetGroup)
+        : students;
+
+      if (rule.trigger === "grade_added" || rule.trigger === "low_grade") {
+        const allGrades = await storage.getAllGrades();
+        let grades = allGrades.filter(g => !g.sentToParent);
+        if (rule.trigger === "low_grade" && rule.triggerConfig) {
+          try {
+            const cfg = JSON.parse(rule.triggerConfig);
+            const threshold = cfg.threshold || 60;
+            grades = grades.filter(g => (g.score / g.totalMarks) * 100 < threshold);
+          } catch {}
+        }
+        for (const grade of grades) {
+          const student = targetStudents.find(s => s.id === grade.studentId);
+          if (!student || !student.guardianPhone) { skipped++; continue; }
+          const msg = applyTemplate(rule.messageTemplate, { studentName: student.name, subject: grade.subject, grade: `${grade.score}/${grade.totalMarks} (${grade.grade})`, date: new Date().toLocaleDateString("ar-SA") });
+          await storage.createAutomationLog({ ruleId: rule.id, ruleName: rule.name, studentId: student.id, phone: student.guardianPhone, message: msg, status: "sent", reason: null });
+          sent++;
+        }
+      } else if (rule.trigger === "attendance_absent") {
+        const activeSession = await storage.getActiveSession();
+        if (activeSession) {
+          const sessionAttendance = await storage.getAttendanceBySession(activeSession.id);
+          const absentStudents = targetStudents.filter(s => !sessionAttendance.some(a => a.studentId === s.id));
+          for (const student of absentStudents) {
+            if (!student.guardianPhone) { skipped++; continue; }
+            const msg = applyTemplate(rule.messageTemplate, { studentName: student.name, session: activeSession.name, date: new Date().toLocaleDateString("ar-SA") });
+            await storage.createAutomationLog({ ruleId: rule.id, ruleName: rule.name, studentId: student.id, phone: student.guardianPhone, message: msg, status: "sent", reason: null });
+            sent++;
+          }
+        } else { skipped = targetStudents.length; }
+      } else if (rule.trigger === "payment_overdue") {
+        const allFinances = await storage.getAllFinances();
+        const overdueFinances = allFinances.filter(f => f.status === "overdue" || (f.status === "partial" && new Date(f.dueDate) < new Date()));
+        for (const finance of overdueFinances) {
+          const student = targetStudents.find(s => s.id === finance.studentId);
+          if (!student || !student.guardianPhone) { skipped++; continue; }
+          const msg = applyTemplate(rule.messageTemplate, { studentName: student.name, date: new Date().toLocaleDateString("ar-SA") });
+          await storage.createAutomationLog({ ruleId: rule.id, ruleName: rule.name, studentId: student.id, phone: student.guardianPhone, message: msg, status: "sent", reason: null });
+          sent++;
+        }
+      } else if (rule.trigger === "homework_due") {
+        const allHomework = await storage.getAllHomework();
+        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split("T")[0];
+        const dueHw = allHomework.filter(h => h.deadline === tomorrowStr && h.status === "active");
+        for (const hw of dueHw) {
+          const hwStudents = hw.groupId ? targetStudents.filter(s => s.groupId === hw.groupId) : targetStudents;
+          for (const student of hwStudents) {
+            if (!student.guardianPhone) { skipped++; continue; }
+            const msg = applyTemplate(rule.messageTemplate, { studentName: student.name, homework: hw.title, date: tomorrowStr });
+            await storage.createAutomationLog({ ruleId: rule.id, ruleName: rule.name, studentId: student.id, phone: student.guardianPhone, message: msg, status: "sent", reason: null });
+            sent++;
+          }
+        }
+      } else if (rule.trigger === "session_start") {
+        const activeSession = await storage.getActiveSession();
+        if (activeSession) {
+          for (const student of targetStudents) {
+            if (!student.guardianPhone) { skipped++; continue; }
+            const msg = applyTemplate(rule.messageTemplate, { studentName: student.name, session: activeSession.name, date: new Date().toLocaleDateString("ar-SA") });
+            await storage.createAutomationLog({ ruleId: rule.id, ruleName: rule.name, studentId: student.id, phone: student.guardianPhone, message: msg, status: "sent", reason: null });
+            sent++;
+          }
+        } else { skipped = targetStudents.length; }
+      } else if (rule.trigger === "manual") {
+        for (const student of targetStudents) {
+          if (!student.guardianPhone) { skipped++; continue; }
+          const msg = applyTemplate(rule.messageTemplate, { studentName: student.name, date: new Date().toLocaleDateString("ar-SA") });
+          await storage.createAutomationLog({ ruleId: rule.id, ruleName: rule.name, studentId: student.id, phone: student.guardianPhone, message: msg, status: "sent", reason: null });
+          sent++;
+        }
+      }
+
+      // Update rule stats
+      await storage.updateAutomationRule(rule.id, { runCount: (rule.runCount || 0) + 1, lastRun: new Date() });
+      res.json({ sent, skipped, total: sent + skipped });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Automation Logs ───────────────────────────────────────────────────────
+  app.get("/api/automation-logs", async (_req, res) => {
+    try { res.json(await storage.getAllAutomationLogs()); }
+    catch { res.status(500).json({ message: "Failed to fetch logs" }); }
+  });
+
+  app.get("/api/automation-logs/rule/:ruleId", async (req, res) => {
+    try { res.json(await storage.getLogsByRule(req.params.ruleId)); }
+    catch { res.status(500).json({ message: "Failed to fetch logs" }); }
+  });
+
+  app.delete("/api/automation-logs", async (_req, res) => {
+    try { await storage.clearAutomationLogs(); res.status(204).send(); }
+    catch { res.status(500).json({ message: "Failed to clear logs" }); }
+  });
+
   // ── Backend ZIP Download ──────────────────────────────────────────────────
   app.get("/api/download/backend", (_req, res) => {
     try {

@@ -11,6 +11,8 @@ import {
   type Exam, type InsertExam,
   type ExamQuestion, type InsertExamQuestion,
   type ExamSubmission, type InsertExamSubmission,
+  type AutomationRule, type InsertAutomationRule,
+  type AutomationLog, type InsertAutomationLog,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -90,6 +92,19 @@ export interface IStorage {
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string): Promise<void>;
   getAllSettings(): Promise<Record<string, string>>;
+
+  // Automation Rules
+  getAllAutomationRules(): Promise<AutomationRule[]>;
+  getAutomationRule(id: string): Promise<AutomationRule | undefined>;
+  createAutomationRule(r: InsertAutomationRule): Promise<AutomationRule>;
+  updateAutomationRule(id: string, u: Partial<AutomationRule>): Promise<AutomationRule>;
+  deleteAutomationRule(id: string): Promise<boolean>;
+
+  // Automation Logs
+  getAllAutomationLogs(): Promise<AutomationLog[]>;
+  getLogsByRule(ruleId: string): Promise<AutomationLog[]>;
+  createAutomationLog(l: InsertAutomationLog): Promise<AutomationLog>;
+  clearAutomationLogs(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -105,6 +120,8 @@ export class MemStorage implements IStorage {
   private exams = new Map<string, Exam>();
   private examQuestions = new Map<string, ExamQuestion>();
   private examSubmissions = new Map<string, ExamSubmission>();
+  private automationRulesMap = new Map<string, AutomationRule>();
+  private automationLogsMap = new Map<string, AutomationLog>();
   private settings = new Map<string, string>([
     ["app_name", "نظام المدرسة"],
     ["semester_start", "2025-09-01"],
@@ -289,6 +306,30 @@ export class MemStorage implements IStorage {
     this.settings.forEach((v, k) => { obj[k] = v; });
     return obj;
   }
+
+  // Automation Rules
+  async getAllAutomationRules() { return Array.from(this.automationRulesMap.values()).sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime()); }
+  async getAutomationRule(id: string) { return this.automationRulesMap.get(id); }
+  async createAutomationRule(input: InsertAutomationRule): Promise<AutomationRule> {
+    const id = randomUUID();
+    const r: AutomationRule = { ...input, id, description: input.description || null, triggerConfig: input.triggerConfig || null, targetGroup: input.targetGroup || null, status: "active", runCount: 0, lastRun: null, createdAt: new Date() };
+    this.automationRulesMap.set(id, r); return r;
+  }
+  async updateAutomationRule(id: string, u: Partial<AutomationRule>): Promise<AutomationRule> {
+    const r = this.automationRulesMap.get(id); if (!r) throw new Error("Rule not found");
+    const updated = { ...r, ...u }; this.automationRulesMap.set(id, updated); return updated;
+  }
+  async deleteAutomationRule(id: string) { return this.automationRulesMap.delete(id); }
+
+  // Automation Logs
+  async getAllAutomationLogs() { return Array.from(this.automationLogsMap.values()).sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime()); }
+  async getLogsByRule(ruleId: string) { return Array.from(this.automationLogsMap.values()).filter(l => l.ruleId === ruleId); }
+  async createAutomationLog(input: InsertAutomationLog): Promise<AutomationLog> {
+    const id = randomUUID();
+    const l: AutomationLog = { ...input, id, ruleName: input.ruleName || null, studentId: input.studentId || null, phone: input.phone || null, message: input.message || null, reason: input.reason || null, createdAt: new Date() };
+    this.automationLogsMap.set(id, l); return l;
+  }
+  async clearAutomationLogs() { this.automationLogsMap.clear(); }
 }
 
 export const storage = new MemStorage();
