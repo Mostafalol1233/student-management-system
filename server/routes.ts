@@ -1484,6 +1484,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Auto-seed default users on every startup ───────────────────────────────
+  (async () => {
+    try {
+      const userCount = await storage.countUsers();
+      if (userCount === 0) {
+        const adminPass = await hashPassword("admin123");
+        const recPass = await hashPassword("rec123");
+        const teachPass = await hashPassword("teach123");
+        const accPass = await hashPassword("acc123");
+
+        await storage.createUser({ name: "مدير النظام", email: "admin@school.edu", password: adminPass, role: "admin" });
+        await storage.createUser({ name: "موظف الاستقبال", email: "reception@school.edu", password: recPass, role: "reception" });
+        await storage.createUser({ name: "محاسب النظام", email: "accountant@school.edu", password: accPass, role: "accountant" });
+
+        const teacher = await storage.createTeacher({
+          name: "أستاذ محمد أحمد", subject: "الرياضيات", phone: "01012345678",
+          email: "teacher@school.edu", salaryType: "fixed", salaryAmount: 5000,
+        });
+        await storage.createUser({ name: "أستاذ محمد أحمد", email: "teacher@school.edu", password: teachPass, role: "teacher", teacherId: teacher.id });
+
+        console.log("[seed] Default users created: admin@school.edu / admin123");
+      }
+    } catch (e) {
+      console.error("[seed] Auto-seed failed:", e);
+    }
+  })();
+
   const httpServer = createServer(app);
   return httpServer;
 }
