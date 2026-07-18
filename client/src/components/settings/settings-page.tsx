@@ -8,13 +8,16 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, GraduationCap, Calendar, DollarSign, Save, Upload, ImageIcon, X, Download } from "lucide-react";
+import { Settings, GraduationCap, Calendar, DollarSign, Save, Upload, ImageIcon, X, Download, ShieldCheck } from "lucide-react";
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const { data: settings = {} } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
   const [local, setLocal] = useState<Record<string, string>>({});
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
 
   useEffect(() => { if (Object.keys(settings).length) setLocal(settings); }, [settings]);
 
@@ -28,6 +31,19 @@ export default function SettingsPage() {
 
   const set = (key: string, value: string) => setLocal(prev => ({ ...prev, [key]: value }));
   const get = (key: string, fallback = "") => local[key] ?? fallback;
+
+  const changePasswordMutation = useMutation({
+    mutationFn: async () => {
+      if (newPw !== confirmPw) throw new Error("كلمة المرور الجديدة وتأكيدها غير متطابقتين");
+      if (newPw.length < 6) throw new Error("كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل");
+      await apiRequest("POST", "/api/auth/change-password", { currentPassword: currentPw, newPassword: newPw });
+    },
+    onSuccess: () => {
+      toast({ title: "✅ تم تغيير كلمة المرور بنجاح" });
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+    },
+    onError: (e: any) => toast({ title: "فشل تغيير كلمة المرور", description: e.message, variant: "destructive" }),
+  });
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,11 +65,12 @@ export default function SettingsPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <Tabs defaultValue="general">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="general"><Settings size={14} className="mr-1" />عام</TabsTrigger>
           <TabsTrigger value="grading"><GraduationCap size={14} className="mr-1" />التقدير</TabsTrigger>
           <TabsTrigger value="semester"><Calendar size={14} className="mr-1" />الفصل</TabsTrigger>
           <TabsTrigger value="finance"><DollarSign size={14} className="mr-1" />المالية</TabsTrigger>
+          <TabsTrigger value="security"><ShieldCheck size={14} className="mr-1" />الأمان</TabsTrigger>
         </TabsList>
 
         {/* General */}
@@ -263,6 +280,81 @@ export default function SettingsPage() {
                   placeholder="نص رسالة التذكير..."
                 />
                 <p className="text-xs text-muted-foreground">المتغيرات المتاحة: {"{student_name}"}, {"{amount}"}, {"{currency}"}, {"{due_date}"}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        {/* Security */}
+        <TabsContent value="security" className="mt-4 space-y-4">
+          <Card>
+            <div className="px-5 py-4 border-b">
+              <h3 className="font-semibold">تغيير كلمة المرور</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">يُنصح بتغيير كلمة المرور بعد أول تسجيل دخول</p>
+            </div>
+            <CardContent className="p-5 space-y-4 max-w-sm">
+              <div className="space-y-2">
+                <Label>كلمة المرور الحالية</Label>
+                <Input
+                  type="password"
+                  value={currentPw}
+                  onChange={e => setCurrentPw(e.target.value)}
+                  placeholder="••••••••"
+                  data-testid="input-current-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>كلمة المرور الجديدة</Label>
+                <Input
+                  type="password"
+                  value={newPw}
+                  onChange={e => setNewPw(e.target.value)}
+                  placeholder="6 أحرف على الأقل"
+                  data-testid="input-new-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>تأكيد كلمة المرور الجديدة</Label>
+                <Input
+                  type="password"
+                  value={confirmPw}
+                  onChange={e => setConfirmPw(e.target.value)}
+                  placeholder="••••••••"
+                  data-testid="input-confirm-password"
+                />
+              </div>
+              {newPw && confirmPw && newPw !== confirmPw && (
+                <p className="text-xs text-destructive">كلمتا المرور غير متطابقتين</p>
+              )}
+              <Button
+                onClick={() => changePasswordMutation.mutate()}
+                disabled={!currentPw || !newPw || !confirmPw || changePasswordMutation.isPending}
+                className="w-full"
+                data-testid="button-change-password"
+              >
+                <ShieldCheck size={14} className="mr-2" />
+                {changePasswordMutation.isPending ? "جاري الحفظ..." : "تغيير كلمة المرور"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <div className="px-5 py-4 border-b">
+              <h3 className="font-semibold">معلومات الأمان</h3>
+            </div>
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <span className="text-amber-600 text-lg">⚠️</span>
+                <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                  <p className="font-semibold">تأكد من ضبط JWT_SECRET في متغيرات البيئة</p>
+                  <p>يجب تعيين متغير البيئة <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">JWT_SECRET</code> بقيمة عشوائية وطويلة قبل النشر.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <span className="text-blue-600 text-lg">🔒</span>
+                <div className="text-xs text-blue-800 dark:text-blue-300 space-y-1">
+                  <p className="font-semibold">الجلسة صالحة لمدة 7 أيام</p>
+                  <p>يتم تسجيل الخروج تلقائياً بعد انتهاء صلاحية رمز الجلسة.</p>
+                </div>
               </div>
             </CardContent>
           </Card>

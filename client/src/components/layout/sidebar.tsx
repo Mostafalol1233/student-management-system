@@ -2,10 +2,11 @@ import { useRef } from "react";
 import {
   GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3,
   MessageCircle, LayoutDashboard, Moon, Sun, Users, BookOpen,
-  DollarSign, TrendingUp, Calendar, ClipboardList, Settings, UserCog, ConciergeBell,
+  DollarSign, TrendingUp, Calendar, ClipboardList, Settings, UserCog, ConciergeBell, X, LogOut,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useSettings } from "@/hooks/use-settings";
+import { useAuth } from "@/lib/auth-context";
 import type { ActiveSection } from "@/pages/dashboard";
 
 interface SidebarProps {
@@ -13,6 +14,8 @@ interface SidebarProps {
   onSectionChange: (section: ActiveSection) => void;
   darkMode: boolean;
   onToggleDark: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 type MenuItem = { id: ActiveSection; icon: React.ComponentType<any>; label: string; labelEn: string };
@@ -77,26 +80,27 @@ const paths: Record<ActiveSection, string> = {
   "settings": "/settings", "teachers": "/teachers", "reception": "/reception",
 };
 
-export default function Sidebar({ activeSection, onSectionChange, darkMode, onToggleDark }: SidebarProps) {
+export default function Sidebar({ activeSection, onSectionChange, darkMode, onToggleDark, mobileOpen, onMobileClose }: SidebarProps) {
   const [, setLocation] = useLocation();
   const navRef = useRef<HTMLElement>(null);
   const { get } = useSettings();
+  const { user, logout } = useAuth();
 
   const centerName = get("app_name", "نظام المدرسة");
   const logoUrl = get("logo_url", "");
   const tagline = get("app_tagline", "Center Management");
 
   const handleNav = (id: ActiveSection) => {
-    // Preserve sidebar scroll position
     const scrollTop = navRef.current?.scrollTop ?? 0;
     setLocation(paths[id]);
     onSectionChange(id);
+    onMobileClose?.();
     requestAnimationFrame(() => {
       if (navRef.current) navRef.current.scrollTop = scrollTop;
     });
   };
 
-  return (
+  const sidebarContent = (
     <div
       className="flex flex-col w-56 flex-shrink-0 h-full"
       style={{
@@ -202,17 +206,54 @@ export default function Sidebar({ activeSection, onSectionChange, darkMode, onTo
               className="text-[12px] font-semibold leading-tight truncate"
               style={{ color: "hsl(var(--sidebar-foreground))" }}
             >
-              المدير
+              {user?.name || "المستخدم"}
             </div>
             <div
               className="text-[9px] leading-tight truncate mt-0.5"
               style={{ color: "hsl(var(--sidebar-foreground) / 0.3)" }}
             >
-              admin@school.edu
+              {user?.email || ""}
             </div>
           </div>
+          <button
+            onClick={logout}
+            title="تسجيل الخروج"
+            className="p-1 rounded hover:bg-red-500/10 text-red-400/60 hover:text-red-400 transition-colors flex-shrink-0"
+          >
+            <LogOut size={12} />
+          </button>
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <div className="hidden lg:flex h-full">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={onMobileClose}
+          />
+          {/* Sidebar panel - RTL so slide from right */}
+          <div className="relative mr-auto h-full">
+            <button
+              onClick={onMobileClose}
+              className="absolute top-3 left-3 z-10 p-1.5 rounded-md hover:bg-muted/20 text-white/60 hover:text-white"
+            >
+              <X size={16} />
+            </button>
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

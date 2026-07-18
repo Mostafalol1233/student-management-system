@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { requireAuth } from "./auth";
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
@@ -37,6 +38,20 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // ── Global API authentication ─────────────────────────────────────────
+  // All /api routes require a valid JWT except the explicit public list below.
+  const PUBLIC_API_PATHS = [
+    "/api/health",
+    "/api/auth/login",
+    "/api/auth/logout",
+  ];
+  app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+    if (PUBLIC_API_PATHS.some(p => req.path === p || req.path.startsWith(p + "/"))) {
+      return next();
+    }
+    return requireAuth(req, res, next);
+  });
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

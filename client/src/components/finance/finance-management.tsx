@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DollarSign, Plus, Trash2, AlertCircle, CheckCircle2,
-  TrendingUp, TrendingDown, Wallet, Receipt, PieChart,
+  TrendingUp, TrendingDown, Wallet, Receipt, PieChart, Printer,
 } from "lucide-react";
 
 const FINANCE_TYPES = ["اشتراك شهري","اشتراك فصلي","اشتراك سنوي","رسوم تسجيل","كتب ومذكرات","أنشطة","أخرى"];
@@ -106,6 +106,57 @@ export default function FinanceManagement() {
     ...cat,
     total: expenses.filter(e => e.category === cat.value).reduce((s, e) => s + e.amount, 0),
   })).filter(c => c.total > 0);
+
+  const printFinanceReport = () => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const rows = finances.map(f => {
+      const student = students.find(s => s.id === f.studentId);
+      const pct = f.amount > 0 ? Math.round(((f.paid ?? 0) / f.amount) * 100) : 0;
+      const overdue = f.status !== "paid" && new Date(f.dueDate) < new Date();
+      return `<tr>
+        <td>${student?.name || "—"}</td>
+        <td>${f.type}</td>
+        <td class="num">${f.amount.toLocaleString()} ج</td>
+        <td class="num">${(f.paid ?? 0).toLocaleString()} ج</td>
+        <td class="num">${(f.amount - (f.paid ?? 0)).toLocaleString()} ج</td>
+        <td>${f.dueDate}</td>
+        <td class="${f.status === "paid" ? "paid" : overdue ? "overdue" : "pending"}">
+          ${f.status === "paid" ? "مدفوع" : overdue ? "متأخر" : "معلق"}
+        </td>
+      </tr>`;
+    }).join("");
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>تقرير مالي</title>
+      <style>
+        body{font-family:Arial,sans-serif;direction:rtl;padding:24px;color:#111}
+        h1{font-size:20px;margin-bottom:4px}
+        .meta{font-size:12px;color:#666;margin-bottom:16px}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th{background:#f3f4f6;padding:8px;text-align:right;border:1px solid #ddd}
+        td{padding:7px 8px;border:1px solid #ddd;text-align:right}
+        .num{text-align:left;font-family:monospace}
+        .paid{color:#16a34a;font-weight:600}
+        .overdue{color:#dc2626;font-weight:600}
+        .pending{color:#d97706;font-weight:600}
+        .summary{margin-top:16px;font-size:13px;display:flex;gap:24px}
+        .summary span{font-weight:700}
+        @media print{body{padding:0}}
+      </style></head><body>
+      <h1>التقرير المالي</h1>
+      <div class="meta">تاريخ الطباعة: ${new Date().toLocaleDateString("ar-EG")} · إجمالي السجلات: ${finances.length}</div>
+      <table>
+        <thead><tr><th>الطالب</th><th>النوع</th><th>المبلغ</th><th>المدفوع</th><th>المتبقي</th><th>الاستحقاق</th><th>الحالة</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="summary">
+        <div>الإجمالي: <span>${totalIncome.toLocaleString()} ج</span></div>
+        <div>المتأخرات: <span>${totalPending.toLocaleString()} ج</span></div>
+        <div>صافي الربح: <span>${netProfit.toLocaleString()} ج</span></div>
+      </div>
+      </body></html>`);
+    win.document.close();
+    win.print();
+  };
 
   const exportCSV = () => {
     const csv = "الطالب,النوع,المبلغ,المدفوع,المتبقي,تاريخ الاستحقاق,الحالة\n" +
@@ -196,7 +247,12 @@ export default function FinanceManagement() {
                 <Receipt size={14} className="text-muted-foreground" />
                 <h3 className="font-semibold text-sm">جميع الدفعات</h3>
               </div>
-              <Button size="sm" variant="outline" onClick={exportCSV} data-testid="button-export-finance">تصدير CSV</Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={exportCSV} data-testid="button-export-finance">تصدير CSV</Button>
+                <Button size="sm" variant="outline" onClick={printFinanceReport} data-testid="button-print-finance">
+                  <Printer size={13} className="mr-1" />طباعة
+                </Button>
+              </div>
             </div>
             <CardContent className="p-0">
               {finances.length === 0 ? (

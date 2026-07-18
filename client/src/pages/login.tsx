@@ -8,8 +8,8 @@ import { Eye, EyeOff, Loader2, Users, QrCode, Star, Wallet } from "lucide-react"
 import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
-  const [email, setEmail] = useState("admin@school.edu");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();

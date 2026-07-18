@@ -118,6 +118,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/logout", (_req, res) => { res.json({ message: "تم تسجيل الخروج بنجاح" }); });
 
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "كلمة المرور الحالية والجديدة مطلوبتان" });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل" });
+      }
+      const user = await storage.getUserById(req.user!.userId);
+      if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
+      const valid = await comparePassword(currentPassword, user.password);
+      if (!valid) return res.status(401).json({ message: "كلمة المرور الحالية غير صحيحة" });
+      const hashed = await hashPassword(newPassword);
+      await storage.updateUser(user.id, { password: hashed });
+      res.json({ message: "تم تغيير كلمة المرور بنجاح" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // ── User management (admin only) ───────────────────────────────────────────
   app.get("/api/users", requireRole("admin"), async (_req, res) => {
     try {
@@ -155,7 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Seed demo data ─────────────────────────────────────────────────────────
-  app.post("/api/seed", async (_req, res) => {
+  app.post("/api/seed", requireRole("admin"), async (_req, res) => {
     try {
       const userCount = await storage.countUsers();
       if (userCount > 0) return res.json({ message: "البيانات التجريبية موجودة بالفعل", skipped: true });
@@ -1044,7 +1063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch { res.status(500).json({ message: "Failed to fetch setting" }); }
   });
 
-  app.put("/api/settings/:key", async (req, res) => {
+  app.put("/api/settings/:key", requireRole("admin"), async (req, res) => {
     try {
       const { value } = req.body;
       if (value === undefined) return res.status(400).json({ message: "value required" });

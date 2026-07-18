@@ -1,4 +1,4 @@
-import { Bell, Search, CheckCheck, Trash2 } from "lucide-react";
+import { Bell, Search, CheckCheck, Trash2, Menu } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CommandSearch, useCommandSearch } from "@/components/ui/command-search";
@@ -6,14 +6,20 @@ import { useNotifications } from "@/lib/notifications";
 import { notificationTypeConfig } from "@/lib/notification-config";
 import type { Student, Session } from "@shared/schema";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth-context";
 
 interface HeaderProps {
   title: string;
   description: string;
   titleAr?: string;
+  onMenuToggle?: () => void;
 }
 
-export default function Header({ title, description, titleAr }: HeaderProps) {
+export default function Header({ title, description, titleAr, onMenuToggle }: HeaderProps) {
+  const { user } = useAuth();
+  const userInitials = user?.name
+    ? user.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
+    : "؟";
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
   const { data: activeSession } = useQuery<Session | null>({ queryKey: ["/api/sessions/active"] });
   const { open: cmdOpen, setOpen: setCmdOpen } = useCommandSearch();
@@ -46,11 +52,22 @@ export default function Header({ title, description, titleAr }: HeaderProps) {
     <>
       <header className="border-b bg-card px-6 py-3 flex items-center justify-between gap-4 flex-shrink-0"
         style={{ borderColor: "hsl(var(--border))" }}>
-        <div className="min-w-0">
-          <h1 className="text-[15px] font-semibold text-foreground leading-tight truncate">
-            {titleAr || title}
-          </h1>
-          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{description}</p>
+        <div className="flex items-center gap-3 min-w-0">
+          {onMenuToggle && (
+            <button
+              onClick={onMenuToggle}
+              className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground flex-shrink-0"
+              aria-label="القائمة"
+            >
+              <Menu size={18} />
+            </button>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold text-foreground leading-tight truncate">
+              {titleAr || title}
+            </h1>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{description}</p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -153,8 +170,11 @@ export default function Header({ title, description, titleAr }: HeaderProps) {
           </div>
 
           {/* Avatar */}
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center cursor-pointer flex-shrink-0">
-            <span className="text-white text-[11px] font-bold">A</span>
+          <div
+            className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center cursor-pointer flex-shrink-0"
+            title={user?.name || ""}
+          >
+            <span className="text-white text-[11px] font-bold">{userInitials}</span>
           </div>
         </div>
       </header>

@@ -2,7 +2,13 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import type { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env.JWT_SECRET || "center-management-dev-secret-2025";
+if (!process.env.JWT_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("[FATAL] JWT_SECRET environment variable must be set in production. Refusing to start.");
+  }
+  console.warn("[SECURITY WARNING] JWT_SECRET is not set. Using insecure fallback — set JWT_SECRET in environment variables before deploying!");
+}
+const JWT_SECRET = process.env.JWT_SECRET || "center-management-dev-secret-CHANGE-ME";
 const JWT_EXPIRES = "7d";
 
 export interface JwtPayload {

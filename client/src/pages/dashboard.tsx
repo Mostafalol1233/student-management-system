@@ -65,6 +65,7 @@ export default function Dashboard({ initialSection = "overview", ...props }: Das
   const [activeSection, setActiveSection] = useState<ActiveSection>(initialSection);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
   const [renderKey, setRenderKey] = useState(0);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -111,9 +112,16 @@ export default function Dashboard({ initialSection = "overview", ...props }: Das
         onSectionChange={handleSectionChange}
         darkMode={darkMode}
         onToggleDark={() => setDarkMode(d => !d)}
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
       />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <Header title={meta.title} titleAr={meta.titleAr} description={meta.description} />
+        <Header
+          title={meta.title}
+          titleAr={meta.titleAr}
+          description={meta.description}
+          onMenuToggle={() => setMobileSidebarOpen(o => !o)}
+        />
         <main ref={mainRef} className="flex-1 overflow-auto p-6">
           <div key={renderKey} className="section-enter">
             {renderContent()}
