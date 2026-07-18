@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { Save, MessageCircle, SendHorizontal, Trash2, Search, ArrowUpDown } from "lucide-react";
+import { Save, MessageCircle, SendHorizontal, Trash2, Search, ArrowUpDown, Edit, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 const SUBJECTS = [
@@ -41,6 +41,10 @@ export default function GradeEntry() {
   const [studentSearch, setStudentSearch] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [sortDir, setSortDir] = useState<"alpha" | "date">("date");
+  const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
+  const [editScore, setEditScore] = useState(0);
+  const [editTotal, setEditTotal] = useState(100);
+  const [editNotes, setEditNotes] = useState("");
   const { toast } = useToast();
 
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
@@ -78,6 +82,24 @@ export default function GradeEntry() {
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/grades/${id}`),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/grades"] }); toast({ title: "✅ تم حذف الدرجة" }); },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, score, totalMarks, notes }: { id: string; score: number; totalMarks: number; notes: string }) =>
+      (await apiRequest("PUT", `/api/grades/${id}`, { score, totalMarks, notes })).json(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/grades"] });
+      setEditingGrade(null);
+      toast({ title: "✅ تم تحديث الدرجة" });
+    },
+    onError: (e: any) => toast({ title: "فشل التحديث", description: e.message, variant: "destructive" }),
+  });
+
+  const openEdit = (g: Grade) => {
+    setEditingGrade(g);
+    setEditScore(g.score);
+    setEditTotal(g.totalMarks);
+    setEditNotes(g.notes ?? "");
+  };
 
   const sendWhatsAppMutation = useMutation({
     mutationFn: async ({ studentName, phoneNumber, grade, subject, notes }: any) =>
@@ -220,7 +242,7 @@ export default function GradeEntry() {
                       <FormItem>
                         <FormLabel>الدرجة *</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="85" min="0" data-testid="input-score" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} />
+                          <Input type="number" placeholder="85" min="0" max={form.watch("totalMarks")} data-testid="input-score" {...field} onChange={e => { const v = parseInt(e.target.value) || 0; field.onChange(Math.min(v, form.watch("totalMarks"))); }} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -375,42 +397,76 @@ export default function GradeEntry() {
                   {filteredGrades.map((grade) => {
                     const student = students.find(s => s.id === grade.studentId);
                     const pctGrade = Math.round((grade.score / grade.totalMarks) * 100);
+                    const isEditing = editingGrade?.id === grade.id;
+                    const previewGrade = editTotal > 0
+                      ? (editScore/editTotal*100 >= 90 ? "A" : editScore/editTotal*100 >= 80 ? "B" : editScore/editTotal*100 >= 70 ? "C" : editScore/editTotal*100 >= 60 ? "D" : "F")
+                      : "F";
                     return (
-                      <TableRow key={grade.id} className="hover:bg-muted/30" data-testid={`row-grade-${grade.id}`}>
+                      <TableRow key={grade.id} className={`hover:bg-muted/30 ${isEditing ? "bg-amber-50/60 dark:bg-amber-900/10" : ""}`} data-testid={`row-grade-${grade.id}`}>
                         <TableCell className="font-medium text-sm" data-testid={`text-grade-student-${grade.id}`}>
                           {student?.name || "غير معروف"}
                         </TableCell>
                         <TableCell className="text-sm" data-testid={`text-grade-subject-${grade.id}`}>{grade.subject}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{grade.assessmentType}</TableCell>
                         <TableCell>
-                          <div className="font-mono text-sm">{grade.score}/{grade.totalMarks}</div>
-                          <div className="text-xs text-muted-foreground">{pctGrade}%</div>
+                          {isEditing ? (
+                            <div className="flex items-center gap-1">
+                              <Input type="number" min="0" max={editTotal} value={editScore}
+                                onChange={e => setEditScore(Math.min(parseInt(e.target.value)||0, editTotal))}
+                                className="h-6 w-14 text-xs font-mono px-1" />
+                              <span className="text-xs text-muted-foreground">/</span>
+                              <Input type="number" min="1" value={editTotal}
+                                onChange={e => { const t=parseInt(e.target.value)||1; setEditTotal(t); if(editScore>t) setEditScore(t); }}
+                                className="h-6 w-14 text-xs font-mono px-1" />
+                            </div>
+                          ) : (
+                            <>
+                              <div className="font-mono text-sm">{grade.score}/{grade.totalMarks}</div>
+                              <div className="text-xs text-muted-foreground">{pctGrade}%</div>
+                            </>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <span className={`text-xs font-bold px-2 py-1 rounded-md ${gradeClass(grade.grade)}`} data-testid={`badge-grade-${grade.id}`}>
-                            {grade.grade}
+                          <span className={`text-xs font-bold px-2 py-1 rounded-md ${gradeClass(isEditing ? previewGrade : grade.grade)}`} data-testid={`badge-grade-${grade.id}`}>
+                            {isEditing ? previewGrade : grade.grade}
                           </span>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{new Date(grade.createdAt!).toLocaleDateString("ar-SA")}</TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm" variant="ghost"
-                              onClick={() => handleSendWhatsApp(grade)}
-                              disabled={sendWhatsAppMutation.isPending || !!grade.sentToParent}
-                              className={!!grade.sentToParent ? "text-muted-foreground" : "text-emerald-600 hover:text-emerald-700"}
-                              title={!!grade.sentToParent ? "تم الإرسال" : "إرسال عبر واتساب"}
-                              data-testid={`button-whatsapp-${grade.id}`}
-                            >
-                              <MessageCircle size={13} />
-                            </Button>
-                            <Button
-                              size="sm" variant="ghost" className="text-destructive hover:text-destructive"
-                              onClick={() => { if (confirm("حذف هذه الدرجة؟")) deleteMutation.mutate(grade.id); }}
-                              data-testid={`button-delete-grade-${grade.id}`}
-                            >
-                              <Trash2 size={13} />
-                            </Button>
+                          <div className="flex gap-0.5">
+                            {isEditing ? (
+                              <>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-emerald-600 hover:text-emerald-700"
+                                  onClick={() => updateMutation.mutate({ id: grade.id, score: editScore, totalMarks: editTotal, notes: editNotes })}
+                                  disabled={updateMutation.isPending} title="حفظ">
+                                  <Save size={12} />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground"
+                                  onClick={() => setEditingGrade(null)} title="إلغاء">
+                                  <X size={12} />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-amber-600 hover:text-amber-700"
+                                  onClick={() => openEdit(grade)} title="تعديل الدرجة"
+                                  data-testid={`button-edit-grade-${grade.id}`}>
+                                  <Edit size={12} />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
+                                  onClick={() => handleSendWhatsApp(grade)}
+                                  disabled={sendWhatsAppMutation.isPending || !!grade.sentToParent}
+                                  title={!!grade.sentToParent ? "تم الإرسال" : "إرسال عبر واتساب"}
+                                  data-testid={`button-whatsapp-${grade.id}`}>
+                                  <MessageCircle size={12} className={!!grade.sentToParent ? "text-muted-foreground" : "text-emerald-600"} />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => { if (confirm("حذف هذه الدرجة؟")) deleteMutation.mutate(grade.id); }}
+                                  data-testid={`button-delete-grade-${grade.id}`}>
+                                  <Trash2 size={12} />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

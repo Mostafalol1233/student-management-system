@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Users, Plus, BookOpen, AlertTriangle, AlertCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Trash2, Users, Plus, BookOpen, AlertTriangle, AlertCircle, Edit, Save } from "lucide-react";
 
 const GRADES = ["الصف الأول","الصف الثاني","الصف الثالث","الصف الرابع","الصف الخامس","الصف السادس","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"];
 const SECTIONS = ["A","B","C","D","E"];
@@ -45,8 +46,9 @@ function CapacityBar({ count, capacity }: { count: number; capacity: number }) {
 
 export default function GroupManagement() {
   const { toast } = useToast();
-  const [editingCapacity, setEditingCapacity] = useState<string | null>(null);
-  const [capValue, setCapValue] = useState(30);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Group>>({});
 
   const { data: groups = [], isLoading } = useQuery<Group[]>({ queryKey: ["/api/groups"] });
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
@@ -62,7 +64,7 @@ export default function GroupManagement() {
     onSuccess: (g: Group) => {
       queryClient.invalidateQueries({ queryKey: ["/api/groups"] });
       form.reset({ name: "", gradeLevel: "", section: "A", subject: "", description: "", color: "#6366f1", capacity: 30 });
-      toast({ title: `تم إنشاء المجموعة: ${g.name}` });
+      toast({ title: `✅ تم إنشاء المجموعة: ${g.name}` });
     },
     onError: (e: any) => toast({ title: "فشل الإنشاء", description: e.message, variant: "destructive" }),
   });
@@ -70,12 +72,18 @@ export default function GroupManagement() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Group> }) =>
       (await apiRequest("PUT", `/api/groups/${id}`, data)).json(),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/groups"] }); setEditingCapacity(null); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/groups"] });
+      setEditOpen(false);
+      setEditingGroup(null);
+      toast({ title: "✅ تم تحديث المجموعة" });
+    },
+    onError: (e: any) => toast({ title: "فشل التحديث", description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/groups/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/groups"] }); toast({ title: "تم حذف المجموعة" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/groups"] }); toast({ title: "✅ تم حذف المجموعة" }); },
   });
 
   const assignMutation = useMutation({
@@ -84,19 +92,77 @@ export default function GroupManagement() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/students"] }),
   });
 
+  const openEdit = (g: Group) => { setEditingGroup(g); setEditForm({ ...g }); setEditOpen(true); };
   const getGroupStudents = (groupId: string) => students.filter(s => s.groupId === groupId);
   const unassigned = students.filter(s => !s.groupId);
-
   const totalCapacity = groups.reduce((s, g) => s + (g.capacity || 30), 0);
-  const totalStudents = students.length;
-  const nearFullCount = groups.filter(g => {
-    const count = getGroupStudents(g.id).length;
-    const cap = g.capacity || 30;
-    return count / cap >= 0.7;
-  }).length;
+  const nearFullCount = groups.filter(g => { const c = getGroupStudents(g.id).length; return c / (g.capacity||30) >= 0.7; }).length;
 
   return (
     <div className="space-y-6">
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={o => { setEditOpen(o); if (!o) setEditingGroup(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>تعديل المجموعة</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">اسم المجموعة *</label>
+              <Input className="h-8 text-sm" value={editForm.name || ""} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} placeholder="مثال: ثالثة ثانوي A" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">الصف *</label>
+                <Select value={editForm.gradeLevel || ""} onValueChange={v => setEditForm(p => ({ ...p, gradeLevel: v }))}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="اختر" /></SelectTrigger>
+                  <SelectContent>{GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">الشعبة *</label>
+                <Select value={editForm.section || ""} onValueChange={v => setEditForm(p => ({ ...p, section: v }))}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>{SECTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">المادة</label>
+              <Input className="h-8 text-sm" value={editForm.subject || ""} onChange={e => setEditForm(p => ({ ...p, subject: e.target.value }))} placeholder="الرياضيات..." />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">المدرس</label>
+              <Select value={editForm.teacherId || ""} onValueChange={v => setEditForm(p => ({ ...p, teacherId: v || null }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="اختر مدرساً" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— بدون مدرس —</SelectItem>
+                  {teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">الطاقة الاستيعابية</label>
+              <Input type="number" min="1" max="200" className="h-8 text-sm" value={editForm.capacity ?? 30}
+                onChange={e => setEditForm(p => ({ ...p, capacity: parseInt(e.target.value) || 30 }))} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">اللون</label>
+              <div className="flex gap-2 flex-wrap mt-1">
+                {COLORS.map(c => (
+                  <button key={c} type="button" onClick={() => setEditForm(p => ({ ...p, color: c }))}
+                    className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${editForm.color === c ? "border-foreground scale-110" : "border-transparent"}`}
+                    style={{ backgroundColor: c }} />
+                ))}
+              </div>
+            </div>
+            <Button className="w-full" onClick={() => editingGroup && updateMutation.mutate({ id: editingGroup.id, data: editForm })}
+              disabled={updateMutation.isPending || !editForm.name}>
+              <Save size={14} className="mr-2" />
+              {updateMutation.isPending ? "جاري الحفظ..." : "حفظ التغييرات"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
@@ -160,9 +226,7 @@ export default function GroupManagement() {
                   <FormItem><FormLabel>المدرس</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl><SelectTrigger><SelectValue placeholder="اختر مدرساً" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                      </SelectContent>
+                      <SelectContent>{teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                     </Select><FormMessage />
                   </FormItem>
                 )} />
@@ -226,28 +290,36 @@ export default function GroupManagement() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       {isFull && <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200">ممتلئة</Badge>}
                       {isNearFull && <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">شبه ممتلئة</Badge>}
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0"
-                        onClick={() => { if (confirm(`حذف مجموعة ${group.name}?`)) deleteMutation.mutate(group.id); }}
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700"
+                        onClick={() => openEdit(group)} title="تعديل المجموعة" data-testid={`button-edit-group-${group.id}`}>
+                        <Edit size={13} />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          const count = groupStudents.length;
+                          const msg = count > 0
+                            ? `حذف مجموعة "${group.name}"؟ سيتم إلغاء تعيين ${count} طالب من هذه المجموعة.`
+                            : `حذف مجموعة "${group.name}"؟`;
+                          if (confirm(msg)) deleteMutation.mutate(group.id);
+                        }}
                         data-testid={`button-delete-group-${group.id}`}>
                         <Trash2 size={13} />
                       </Button>
                     </div>
                   </div>
 
-                  {/* Capacity bar */}
                   <CapacityBar count={groupStudents.length} capacity={capacity} />
 
-                  {/* Students */}
                   {groupStudents.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {groupStudents.map(s => (
                         <div key={s.id} className="flex items-center gap-1 px-2 py-0.5 bg-muted rounded-lg text-xs">
                           <span>{s.name}</span>
                           <button onClick={() => assignMutation.mutate({ studentId: s.id, groupId: null })}
-                            className="text-muted-foreground hover:text-destructive mr-0.5">×</button>
+                            className="text-muted-foreground hover:text-destructive mr-0.5 leading-none">×</button>
                         </div>
                       ))}
                     </div>
@@ -270,7 +342,7 @@ export default function GroupManagement() {
                   <div key={s.id} className="flex items-center gap-3">
                     <div className="flex-1 text-sm">{s.name} <span className="text-muted-foreground text-xs">({s.code})</span></div>
                     <Select onValueChange={gId => assignMutation.mutate({ studentId: s.id, groupId: gId })}>
-                      <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="إضافة لمجموعة" /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="إضافة لمجموعة" /></SelectTrigger>
                       <SelectContent>
                         {groups.map(g => {
                           const count = getGroupStudents(g.id).length;
