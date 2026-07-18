@@ -40,10 +40,11 @@ app.use((req, res, next) => {
 (async () => {
   // ── Global API authentication ─────────────────────────────────────────
   // All /api routes require a valid JWT except the explicit public list below.
+  // Paths are relative to the /api mount point (Express strips the prefix).
   const PUBLIC_API_PATHS = [
-    "/api/health",
-    "/api/auth/login",
-    "/api/auth/logout",
+    "/health",
+    "/auth/login",
+    "/auth/logout",
   ];
   app.use("/api", (req: Request, res: Response, next: NextFunction) => {
     if (PUBLIC_API_PATHS.some(p => req.path === p || req.path.startsWith(p + "/"))) {
