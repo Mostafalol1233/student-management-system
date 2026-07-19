@@ -100,6 +100,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const valid = await comparePassword(password, user.password);
       if (!valid) return res.status(401).json({ message: "البريد الإلكتروني أو كلمة المرور غير صحيحة" });
+      // Track last login
+      await storage.updateUser(user.id, { lastLogin: new Date() });
       const payload = { userId: user.id, email: user.email, role: user.role as any, name: user.name, teacherId: user.teacherId };
       const token = signToken(payload);
       const { password: _, ...safeUser } = user;
@@ -319,7 +321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/students", async (req, res) => {
+  app.post("/api/students", requireRole("admin", "reception"), async (req, res) => {
     try {
       const studentData = insertStudentSchema.parse(req.body);
       const student = await storage.createStudent(studentData);
@@ -430,7 +432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/students/:id", async (req, res) => {
+  app.put("/api/students/:id", requireRole("admin", "reception"), async (req, res) => {
     try {
       const updates = req.body;
       const student = await storage.updateStudent(req.params.id, updates);
@@ -443,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/students/:id", async (req, res) => {
+  app.delete("/api/students/:id", requireRole("admin"), async (req, res) => {
     try {
       const deleted = await storage.deleteStudent(req.params.id);
       if (!deleted) {
@@ -474,7 +476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/sessions", async (req, res) => {
+  app.post("/api/sessions", requireAuth, async (req, res) => {
     try {
       const sessionData = insertSessionSchema.parse(req.body);
       const session = await storage.createSession(sessionData);
@@ -487,7 +489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/sessions/:id", async (req, res) => {
+  app.put("/api/sessions/:id", requireAuth, async (req, res) => {
     try {
       const updates = req.body;
       const session = await storage.updateSession(req.params.id, updates);
@@ -501,6 +503,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Attendance routes
+  app.get("/api/attendance", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getAllAttendance()); }
+    catch { res.status(500).json({ message: "Failed to fetch attendance" }); }
+  });
+
   app.get("/api/attendance/session/:sessionId", async (req, res) => {
     try {
       const attendance = await storage.getAttendanceBySession(req.params.sessionId);
@@ -519,7 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/attendance", async (req, res) => {
+  app.post("/api/attendance", requireAuth, async (req, res) => {
     try {
       const attendanceData = insertAttendanceSchema.parse(req.body);
       
@@ -543,15 +550,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/attendance/:id", async (req, res) => {
+  app.put("/api/attendance/:id", requireAuth, async (req, res) => {
     try {
       const updated = await storage.updateAttendance(req.params.id, req.body);
       res.json(updated);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete("/api/attendance/:id", async (req, res) => {
+  app.delete("/api/attendance/:id", requireAuth, async (req, res) => {
     try {
+      // Teachers can only delete attendance for their own sessions
+      if (req.user!.role === "teacher") {
+        const allAtt = await storage.getAllAttendance();
+        const record = allAtt.find(a => a.id === req.params.id);
+        if (!record) return res.status(404).json({ message: "Attendance record not found" });
+        const session = await storage.getSession(record.sessionId);
+        if (session && session.teacherId !== req.user!.teacherId) {
+          return res.status(403).json({ message: "لا يمكنك حذف سجلات حصة مدرس آخر" });
+        }
+      } else if (req.user!.role === "accountant" || req.user!.role === "reception") {
+        return res.status(403).json({ message: "ليس لديك صلاحية حذف سجلات الحضور" });
+      }
       const ok = await storage.deleteAttendance(req.params.id);
       if (!ok) return res.status(404).json({ message: "Attendance record not found" });
       res.status(204).send();
@@ -584,7 +603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete session
-  app.delete("/api/sessions/:id", async (req, res) => {
+  app.delete("/api/sessions/:id", requireAuth, async (req, res) => {
     try {
       const ok = await storage.deleteSession(req.params.id);
       if (!ok) return res.status(404).json({ message: "Session not found" });
@@ -613,9 +632,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  app.post("/api/grades", async (req, res) => {
+  app.post("/api/grades", requireAuth, async (req, res) => {
     try {
       const gradeData = insertGradeSchema.parse(req.body);
+      if (gradeData.score > gradeData.totalMarks) {
+        return res.status(400).json({ message: "الدرجة لا يمكن أن تتجاوز الدرجة الكلية" });
+      }
       const grade = await storage.createGrade(gradeData);
       res.status(201).json(grade);
     } catch (error) {
@@ -626,9 +648,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/grades/:id", async (req, res) => {
+  app.put("/api/grades/:id", requireAuth, async (req, res) => {
     try {
       const updates = req.body;
+      if (updates.score !== undefined && updates.totalMarks !== undefined && updates.score > updates.totalMarks) {
+        return res.status(400).json({ message: "الدرجة لا يمكن أن تتجاوز الدرجة الكلية" });
+      }
       const grade = await storage.updateGrade(req.params.id, updates);
       res.json(grade);
     } catch (error: any) {
@@ -639,7 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/grades/:id", async (req, res) => {
+  app.delete("/api/grades/:id", requireRole("admin", "teacher"), async (req, res) => {
     try {
       const deleted = await storage.deleteGrade(req.params.id);
       if (!deleted) {
@@ -887,12 +912,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     catch (e: any) { res.status(e.message?.includes("not found") ? 404 : 500).json({ message: e.message }); }
   });
 
-  app.delete("/api/groups/:id", async (req, res) => {
+  app.delete("/api/groups/:id", requireAuth, async (req, res) => {
     try {
+      // Check for active sessions or enrollments before deleting
+      const [sessions, enrollments] = await Promise.all([
+        storage.getAllSessions(),
+        storage.getAllEnrollments(),
+      ]);
+      const activeSessions = sessions.filter(s => s.groupId === req.params.id && s.status !== "completed");
+      const activeEnrollments = enrollments.filter(e => e.groupId === req.params.id && e.status === "active");
+      if (activeSessions.length > 0) {
+        return res.status(409).json({ message: `لا يمكن حذف المجموعة — لها ${activeSessions.length} حصص نشطة` });
+      }
+      if (activeEnrollments.length > 0) {
+        return res.status(409).json({ message: `لا يمكن حذف المجموعة — مسجّل بها ${activeEnrollments.length} طالب` });
+      }
       const ok = await storage.deleteGroup(req.params.id);
       if (!ok) return res.status(404).json({ message: "Group not found" });
       res.status(204).send();
-    } catch { res.status(500).json({ message: "Failed to delete group" }); }
+    } catch (e: any) { res.status(500).json({ message: e.message || "Failed to delete group" }); }
   });
 
   // ── Homework ─────────────────────────────────────────────────────────────
@@ -1085,10 +1123,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     catch { res.status(500).json({ message: "Failed to fetch submissions" }); }
   });
 
-  app.post("/api/exam-submissions", async (req, res) => {
+  app.post("/api/exam-submissions", requireAuth, async (req, res) => {
     try {
       const { examId, studentId, score, status } = req.body;
       if (!examId || !studentId) return res.status(400).json({ message: "examId and studentId required" });
+      // Upsert: check if submission already exists for this student+exam
+      const existing = await storage.getExamSubmissions(examId);
+      const found = existing.find(s => s.studentId === studentId);
+      if (found) {
+        const updated = await storage.updateExamSubmission(found.id, { score: score ?? found.score, status: status || found.status });
+        return res.json(updated);
+      }
       res.status(201).json(await storage.createExamSubmission({ examId, studentId, score: score ?? null, status: status || "pending" }));
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -1333,12 +1378,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete("/api/teachers/:id", async (req, res) => {
+  app.delete("/api/teachers/:id", requireAuth, async (req, res) => {
     try {
+      // Check for active enrollments before deleting
+      const enrollments = await storage.getEnrollmentsByTeacher(req.params.id);
+      const activeEnrollments = enrollments.filter(e => e.status === "active");
+      if (activeEnrollments.length > 0) {
+        return res.status(409).json({ message: `لا يمكن حذف المدرس — لديه ${activeEnrollments.length} تسجيل نشط` });
+      }
       const ok = await storage.deleteTeacher(req.params.id);
       if (!ok) return res.status(404).json({ message: "Teacher not found" });
       res.status(204).send();
-    } catch { res.status(500).json({ message: "Failed to delete teacher" }); }
+    } catch (e: any) { res.status(500).json({ message: e.message || "Failed to delete teacher" }); }
   });
 
   // ── Subjects ──────────────────────────────────────────────────────────────
@@ -1495,7 +1546,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!teacher) return res.status(404).json({ message: "Teacher not found" });
       const enrollments = await storage.getAllEnrollments();
       const finances = await storage.getAllFinances();
-      const activeStudents = enrollments.filter(e => e.teacherId === teacher.id && e.status === "active");
+      // per_student: only count students with an active subscription
+      const subscriptions = await storage.getAllSubscriptions();
+      const activeStudents = enrollments.filter(e => {
+        if (e.teacherId !== teacher.id || e.status !== "active") return false;
+        if (teacher.salaryType !== "per_student") return true;
+        // For per_student, require an active subscription
+        return subscriptions.some(s => s.studentId === e.studentId && s.status === "active");
+      });
       const studentCount = activeStudents.length;
       const studentIds = activeStudents.map(e => e.studentId);
       // Optional period filter
@@ -1588,6 +1646,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currency: "جنيه",
         country_code: "+20",
         primary_color: "#6366f1",
+        grades_list: "الصف الأول,الصف الثاني,الصف الثالث,الصف الرابع,الصف الخامس,الصف السادس,Grade 7,Grade 8,Grade 9,Grade 10,Grade 11,Grade 12",
+        sections_list: "A,B,C,D,E,أ,ب,ج,د",
       };
       for (const [key, value] of Object.entries(defaults)) {
         const existing = await storage.getSetting(key);

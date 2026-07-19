@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertExamSchema, type Exam, type InsertExam, type ExamQuestion, type Group, type Student, type ExamSubmission } from "@shared/schema";
+import { insertExamSchema, type Exam, type InsertExam, type ExamQuestion, type Group, type Student, type ExamSubmission, type Subject } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, ClipboardList, BookOpen, CheckSquare } from "lucide-react";
 
-const SUBJECTS = ["الرياضيات","الفيزياء","الكيمياء","الأحياء","اللغة العربية","اللغة الإنجليزية","التاريخ","الجغرافيا","الحاسوب","Mathematics","Physics","English","Science"];
+const SUBJECTS_FALLBACK = ["الرياضيات","الفيزياء","الكيمياء","الأحياء","اللغة العربية","اللغة الإنجليزية","التاريخ","الجغرافيا","الحاسوب","Mathematics","Physics","English","Science"];
 const QUESTION_TYPES = [
   { value: "mcq", label: "اختيار من متعدد" },
   { value: "true_false", label: "صح أم خطأ" },
@@ -30,6 +30,8 @@ export default function ExamBuilder() {
   const { data: exams = [] } = useQuery<Exam[]>({ queryKey: ["/api/exams"] });
   const { data: groups = [] } = useQuery<Group[]>({ queryKey: ["/api/groups"] });
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
+  const { data: dbSubjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
+  const subjectOptions = dbSubjects.length > 0 ? dbSubjects.map(s => s.name) : SUBJECTS_FALLBACK;
   const { data: questions = [] } = useQuery<ExamQuestion[]>({
     queryKey: ["/api/exams", selectedExam?.id, "questions"],
     queryFn: async () => selectedExam ? (await fetch(`/api/exams/${selectedExam.id}/questions`)).json() : [],
@@ -103,7 +105,7 @@ export default function ExamBuilder() {
                     <FormItem><FormLabel className="text-xs">المادة *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger className="h-8 text-sm"><SelectValue placeholder="اختر" /></SelectTrigger></FormControl>
-                        <SelectContent>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        <SelectContent>{subjectOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                       </Select><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="groupId" render={({ field }) => (

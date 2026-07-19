@@ -191,7 +191,8 @@ export default function FinanceManagement() {
     const csv = "الطالب,النوع,المبلغ,المدفوع,المتبقي,تاريخ الاستحقاق,الحالة\n" +
       filteredFinances.map(f => {
         const s = students.find(st => st.id === f.studentId);
-        return `"${s?.name || ""}","${f.type}",${f.amount},${f.paid ?? 0},${f.amount - (f.paid ?? 0)},"${f.dueDate}","${f.status === "paid" ? "مدفوع" : "معلق"}"`;
+        const overdue = f.status !== "paid" && new Date(f.dueDate) < new Date();
+        return `"${s?.name || ""}","${f.type}",${f.amount},${f.paid ?? 0},${f.amount - (f.paid ?? 0)},"${f.dueDate}","${f.status === "paid" ? "مدفوع" : overdue ? "متأخر" : "معلق"}"`;
       }).join("\n");
     const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: "finance-report.csv" });
@@ -253,7 +254,13 @@ export default function FinanceManagement() {
               </Select>
             </div>
             <Button className="w-full" disabled={updateFinanceMutation.isPending}
-              onClick={() => editingFinance && updateFinanceMutation.mutate({ id: editingFinance.id, updates: editFinanceForm })}>
+              onClick={() => {
+                if (!editingFinance) return;
+                if (!editFinanceForm.studentId) { alert("يرجى اختيار الطالب"); return; }
+                if (!editFinanceForm.dueDate) { alert("يرجى تحديد تاريخ الاستحقاق"); return; }
+                if ((editFinanceForm.amount ?? 0) <= 0) { alert("يجب أن يكون المبلغ أكبر من صفر"); return; }
+                updateFinanceMutation.mutate({ id: editingFinance.id, updates: editFinanceForm });
+              }}>
               <Save size={14} className="mr-2" />
               {updateFinanceMutation.isPending ? "جاري الحفظ..." : "حفظ التغييرات"}
             </Button>

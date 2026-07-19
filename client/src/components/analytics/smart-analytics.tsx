@@ -12,6 +12,7 @@ interface SmartAnalyticsProps { onNavigate: (s: ActiveSection) => void; }
 export default function SmartAnalytics({ onNavigate }: SmartAnalyticsProps) {
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
   const { data: sessions = [] } = useQuery<Session[]>({ queryKey: ["/api/sessions"] });
+  const { data: allAttendance = [] } = useQuery<Attendance[]>({ queryKey: ["/api/attendance"] });
   const { data: grades = [] } = useQuery<Grade[]>({ queryKey: ["/api/grades"] });
   const { data: homework = [] } = useQuery<Homework[]>({ queryKey: ["/api/homework"] });
   const { data: submissions = [] } = useQuery<HomeworkSubmission[]>({ queryKey: ["/api/homework/submissions"] });
@@ -32,12 +33,12 @@ export default function SmartAnalytics({ onNavigate }: SmartAnalyticsProps) {
     const topStudents = [...studentPerf].filter(s => s.avg !== null).sort((a, b) => (b.avg || 0) - (a.avg || 0)).slice(0, 5);
     // At risk (low grades OR low homework completion)
     const atRisk = studentPerf.filter(s => (s.avg !== null && s.avg < 60) || (s.gradeCount > 0 && s.hwRate < 50));
-    // Most absent - need attendance data per student per session
-    const sessionIds = sessions.map(s => s.id);
+    // Most absent - computed from real attendance data
     const mostAbsent = students.map(student => {
-      const presentCount = 0; // would need attendance data - show placeholder
-      return { student, absences: 0 };
-    }).slice(0, 5);
+      const recs = allAttendance.filter(a => a.studentId === student.id);
+      const absences = recs.filter(a => a.status === "absent").length;
+      return { student, absences };
+    }).filter(x => x.absences > 0).sort((a, b) => b.absences - a.absences).slice(0, 5);
 
     // Subject analytics
     const subjectStats = Array.from(new Set(grades.map(g => g.subject))).map(subject => {
@@ -62,8 +63,8 @@ export default function SmartAnalytics({ onNavigate }: SmartAnalyticsProps) {
     const gradeDist = { A: 0, B: 0, C: 0, D: 0, F: 0 } as Record<string, number>;
     grades.forEach(g => { if (g.grade) gradeDist[g.grade] = (gradeDist[g.grade] || 0) + 1; });
 
-    return { topStudents, atRisk, subjectStats, totalRevenue, totalDue, collectionRate, overdueCount, hwCompletionRate, gradeDist, studentPerf };
-  }, [students, sessions, grades, homework, submissions, finances]);
+    return { topStudents, atRisk, mostAbsent, subjectStats, totalRevenue, totalDue, collectionRate, overdueCount, hwCompletionRate, gradeDist, studentPerf };
+  }, [students, sessions, allAttendance, grades, homework, submissions, finances]);
 
   const gradeColors: Record<string, string> = { A: "bg-emerald-500", B: "bg-blue-500", C: "bg-yellow-500", D: "bg-orange-500", F: "bg-red-500" };
 
@@ -72,7 +73,7 @@ export default function SmartAnalytics({ onNavigate }: SmartAnalyticsProps) {
       {/* Summary Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "طلاب في خطر", value: analytics.atRisk.length, icon: AlertTriangle, color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/20", onClick: () => {} },
+          { label: "طلاب في خطر", value: analytics.atRisk.length, icon: AlertTriangle, color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/20", onClick: () => onNavigate("student-registration" as ActiveSection) },
           { label: "نسبة إنجاز الواجبات", value: `${analytics.hwCompletionRate.toFixed(0)}%`, icon: Target, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", onClick: () => onNavigate("homework-management" as ActiveSection) },
           { label: "نسبة تحصيل الرسوم", value: `${analytics.collectionRate.toFixed(0)}%`, icon: TrendingUp, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/20", onClick: () => onNavigate("finance-management" as ActiveSection) },
           { label: "متأخرون ماليًا", value: analytics.overdueCount, icon: Flame, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/20", onClick: () => onNavigate("finance-management" as ActiveSection) },

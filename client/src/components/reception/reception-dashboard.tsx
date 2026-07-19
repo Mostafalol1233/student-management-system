@@ -34,9 +34,13 @@ function StudentCard({ student, onClose }: { student: Student; onClose: () => vo
   const overdueSubscriptions = subscriptions.filter(s => s.status === "overdue" || ((s.paid ?? 0) < s.amount && s.endDate && new Date(s.endDate) < new Date()));
   const hasAlerts = overdueFinances.length > 0 || overdueSubscriptions.length > 0;
 
+  const [partialAmounts, setPartialAmounts] = useState<Record<string, number>>({});
+
   const payMutation = useMutation({
-    mutationFn: async ({ id, amount }: { id: string; amount: number }) =>
-      (await apiRequest("PUT", `/api/finances/${id}`, { paid: amount, status: "paid" })).json(),
+    mutationFn: async ({ id, amount, total }: { id: string; amount: number; total: number }) => {
+      const status = amount >= total ? "paid" : "pending";
+      return (await apiRequest("PUT", `/api/finances/${id}`, { paid: amount, status })).json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/finances/student", student.id] });
       toast({ title: "تم تسجيل الدفع" });
@@ -73,17 +77,33 @@ function StudentCard({ student, onClose }: { student: Student; onClose: () => vo
           <div className="text-xs font-semibold text-red-700 dark:text-red-400 flex items-center gap-1.5">
             <AlertTriangle size={11} />تنبيهات تحتاج اهتمام
           </div>
-          {overdueFinances.map(f => (
-            <div key={f.id} className="flex items-center justify-between">
-              <span className="text-xs text-red-600 dark:text-red-400">
-                متأخرات: {(f.amount - (f.paid ?? 0)).toLocaleString()} ج — {f.type}
-              </span>
-              <Button size="sm" variant="outline" className="h-6 text-[10px] border-red-300 text-red-700"
-                onClick={() => payMutation.mutate({ id: f.id, amount: f.amount })}>
-                دفع الآن
-              </Button>
-            </div>
-          ))}
+          {overdueFinances.map(f => {
+            const remaining = f.amount - (f.paid ?? 0);
+            const partial = partialAmounts[f.id] ?? remaining;
+            return (
+              <div key={f.id} className="space-y-1.5">
+                <span className="text-xs text-red-600 dark:text-red-400 block">
+                  متأخرات: {remaining.toLocaleString()} ج — {f.type}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={1}
+                    max={remaining}
+                    value={partial}
+                    onChange={e => setPartialAmounts(p => ({ ...p, [f.id]: Math.min(remaining, Math.max(1, Number(e.target.value))) }))}
+                    className="h-6 w-20 text-xs border rounded px-1.5 font-mono bg-background"
+                  />
+                  <span className="text-xs text-muted-foreground">ج</span>
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] border-red-300 text-red-700"
+                    disabled={payMutation.isPending}
+                    onClick={() => payMutation.mutate({ id: f.id, amount: (f.paid ?? 0) + partial, total: f.amount })}>
+                    دفع
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
           {overdueSubscriptions.map(s => (
             <div key={s.id} className="text-xs text-red-600 dark:text-red-400">
               اشتراك منتهٍ — {(s.amount - (s.paid ?? 0)).toLocaleString()} ج

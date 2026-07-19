@@ -1,22 +1,36 @@
 ---
-name: Professionalization feature status
-description: Which items from the user's professionalization list are done vs deferred and why
+name: Professionalization features
+description: Tracks which audit-report issues are fixed and which were deferred
 ---
 
-## Done
-- Financial Ledger + Expense Tracking: expenses table, /api/expenses CRUD, finance-management.tsx has 4-tab UI (ledger / payment / expenses / overdue), net profit calculation, expense breakdown by category
-- Salary Settlement Engine: /api/teachers/:id/salary-report endpoint, SalarySettlementPanel dialog in teacher-management.tsx, handles fixed/per_student/percentage salary types with auto-calculation
-- Capacity Intelligence: CapacityBar component in group-management.tsx, color-coded (green <70%, amber 70-90%, red ≥90%), near-full badge, disabled full groups in "assign student" dropdown
-- Session Lifecycle: added "cancelled" status + XCircle icon, cancel/restart buttons in session-management.tsx
-- Smart Student Timeline: StudentTimeline component in client/src/components/students/student-timeline.tsx, integrated as a tab in the reception student popup, shows attendance + payments + grades + registration chronologically
-- Reception Fast Workflow: Enter=search→checkin→reset, Escape=reset, /=focus search globally, kbd hints shown in UI
-- Production UI Polish: Cairo font, refined CSS design tokens, section-enter animation, skeleton loading, status badge classes, unified empty states
+## Fixed in this session
 
-## Deferred (intentionally)
-- Role-Based Access: needs auth system first
-- Real Auth (JWT/Clerk): large scope, user hasn't requested yet
-- DB Migration from MemStorage: user hasn't asked, MemStorage works for now
-- Academic Year Engine: not requested yet
-- Soft Delete: not requested yet
+### Backend
+- **Student code generation** (`server/db-storage.ts`): Changed from random 4-digit to sequential (max+1, starting at 1001). Eliminates collision risk entirely.
+- **API role enforcement** (`server/routes.ts`):
+  - `POST /api/students` → `requireRole("admin", "reception")`
+  - `PUT /api/students/:id` → `requireRole("admin", "reception")`
+  - `DELETE /api/students/:id` → `requireRole("admin")`
+  - `POST /api/sessions` → `requireAuth`
+  - `PUT /api/sessions/:id` → `requireAuth`
+  - `DELETE /api/sessions/:id` → `requireAuth`
+  - `DELETE /api/attendance/:id` → `requireAuth` + teacher-ownership check (teacher can only delete their own session's records; accountant/reception blocked)
+  - `DELETE /api/grades/:id` → `requireRole("admin", "teacher")`
+- **Default settings** (`server/routes.ts`): Added `grades_list` and `sections_list` default values.
 
-**Why deferred:** User requested "do all" from the list but most deferred items require major infrastructure changes (auth, DB) that would take a full separate session and the user hasn't confirmed they need them.
+### Frontend
+- **Homework subjects bug** (`homework-management.tsx` line 161): Was referencing undefined `SUBJECTS` constant; fixed to `subjectOptions`.
+- **Settings-driven grades/sections** (`student-registration.tsx`, `group-management.tsx`): Both now load grades/sections from `settings.grades_list` / `settings.sections_list` with hardcoded fallback arrays.
+- **Settings page UI** (`settings-page.tsx`): Added text inputs for `grades_list` and `sections_list` so admins can configure curriculum-specific values.
+
+## Already fixed before this session (no action needed)
+- #3 Smart analytics real data, #6 grade scale from settings, #8 delete dependency checks,
+  #10 CSV overdue status, #12 reception partial payment, #13 attendance session guard,
+  #15 last_login, #16 attendance notes field, #17 score cap, #18 timetable implemented,
+  #21 Arabic sort, #22 delete confirmations, #24 mark-all-absent, #27 per_student salary,
+  #30 nationalId/photoUrl fields
+
+## Deferred / not applicable
+- #23 WhatsApp reconnect after session loss — requires persistent WA session storage; complex
+- #4 Salary report performance — correctness is fine; in-memory filter is acceptable for current scale
+- #11 Homework onBlur stale state — backend upsert handles it; no data loss possible

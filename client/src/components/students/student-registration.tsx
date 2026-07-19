@@ -6,6 +6,15 @@ import { insertStudentSchema, type Student, type InsertStudent, type Group } fro
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/hooks/use-settings";
+
+function useGradesSections() {
+  const { get } = useSettings();
+  const gradesList = get("grades_list", "");
+  const sectionsList = get("sections_list", "");
+  const grades = gradesList ? gradesList.split(",").map(s => s.trim()).filter(Boolean) : GRADES_FALLBACK;
+  const sections = sectionsList ? sectionsList.split(",").map(s => s.trim()).filter(Boolean) : SECTIONS_FALLBACK;
+  return { grades, sections };
+}
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +27,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import QRGenerator, { QRGeneratorRef } from "@/components/ui/qr-generator";
 import { Plus, Download, Upload, FileText, AlertCircle, CheckCircle, Search, Trash2, Eye, Users, UserPlus, Printer, GraduationCap, ChevronDown, ArrowUpDown } from "lucide-react";
 
-const GRADES = ["الصف الأول", "الصف الثاني", "الصف الثالث", "الصف الرابع", "الصف الخامس", "الصف السادس", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
-const SECTIONS = ["A", "B", "C", "D", "E"];
+const GRADES_FALLBACK = ["الصف الأول", "الصف الثاني", "الصف الثالث", "الصف الرابع", "الصف الخامس", "الصف السادس", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
+const SECTIONS_FALLBACK = ["A", "B", "C", "D", "E", "أ", "ب", "ج", "د"];
 
 function StudentIDCard({ student }: { student: Student }) {
   const qrRef = useRef<QRGeneratorRef>(null);
@@ -139,6 +148,7 @@ export default function StudentRegistration() {
   const [sortAlpha, setSortAlpha] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { grades: GRADES, sections: SECTIONS } = useGradesSections();
 
   const { data: students = [], isLoading } = useQuery<Student[]>({ queryKey: ["/api/students"] });
   const { data: groups = [] } = useQuery<Group[]>({ queryKey: ["/api/groups"] });

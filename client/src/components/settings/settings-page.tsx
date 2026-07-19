@@ -191,6 +191,30 @@ export default function SettingsPage() {
                   <Input value={get("country_code", "+20")} onChange={e => set("country_code", e.target.value)} placeholder="+20" />
                 </div>
               </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label>قائمة الصفوف الدراسية</Label>
+                <Input
+                  value={get("grades_list", "")}
+                  onChange={e => set("grades_list", e.target.value)}
+                  placeholder="الصف الأول,الصف الثاني,Grade 7,Grade 8,..."
+                  data-testid="input-grades-list"
+                />
+                <p className="text-xs text-muted-foreground">أدخل الصفوف مفصولة بفواصل — تظهر في قوائم تسجيل الطلاب والمجموعات</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>قائمة الشُعب</Label>
+                <Input
+                  value={get("sections_list", "")}
+                  onChange={e => set("sections_list", e.target.value)}
+                  placeholder="A,B,C,أ,ب,ج,..."
+                  data-testid="input-sections-list"
+                />
+                <p className="text-xs text-muted-foreground">أدخل الشُعب مفصولة بفواصل — تظهر في قوائم تسجيل الطلاب والمجموعات</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

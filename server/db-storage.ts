@@ -37,10 +37,10 @@ export class DatabaseStorage {
 
   private async generateStudentCode(): Promise<string> {
     const all = await db.select({ code: students.code }).from(students);
-    const codes = new Set(all.map(s => s.code));
-    let code: string;
-    do { code = Math.floor(100 + Math.random() * 900).toString(); } while (codes.has(code));
-    return code;
+    // Sequential codes starting from 1001 — avoids random collisions entirely
+    const numericCodes = all.map(s => s.code).filter(c => /^\d+$/.test(c)).map(Number);
+    const next = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 1001;
+    return String(next);
   }
 
   // ── Students ─────────────────────────────────────────────────────────────
@@ -208,6 +208,10 @@ export class DatabaseStorage {
     const r = await db.update(sessions).set(u).where(eq(sessions.id, id)).returning();
     if (!r[0]) throw new Error("Session not found"); return r[0];
   }
+  async deleteSession(id: string): Promise<boolean> {
+    const r = await db.delete(sessions).where(eq(sessions.id, id)).returning();
+    return r.length > 0;
+  }
 
   // ── Attendance ────────────────────────────────────────────────────────────
   async getAllAttendance(): Promise<Attendance[]> {
@@ -226,6 +230,15 @@ export class DatabaseStorage {
   }
   async createAttendance(input: InsertAttendance): Promise<Attendance> {
     const r = await db.insert(attendance).values(input).returning(); return r[0];
+  }
+  async updateAttendance(id: string, u: Partial<Attendance>): Promise<Attendance> {
+    const r = await db.update(attendance).set(u).where(eq(attendance.id, id)).returning();
+    if (!r[0]) throw new Error("Attendance record not found");
+    return r[0];
+  }
+  async deleteAttendance(id: string): Promise<boolean> {
+    const r = await db.delete(attendance).where(eq(attendance.id, id)).returning();
+    return r.length > 0;
   }
 
   // ── Grades ────────────────────────────────────────────────────────────────

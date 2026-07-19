@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertGradeSchema, type Grade, type InsertGrade, type Student } from "@shared/schema";
+import { insertGradeSchema, type Grade, type InsertGrade, type Student, type Subject } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Save, MessageCircle, SendHorizontal, Trash2, Search, ArrowUpDown, Edit, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
-const SUBJECTS = [
+const SUBJECTS_FALLBACK = [
   "الرياضيات", "الفيزياء", "الكيمياء", "الأحياء", "اللغة العربية", "اللغة الإنجليزية",
   "التاريخ", "الجغرافيا", "التربية الإسلامية", "الحاسوب", "الفنون", "التربية البدنية",
   "Mathematics", "Physics", "Chemistry", "Biology", "English", "Science",
@@ -49,6 +49,13 @@ export default function GradeEntry() {
 
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
   const { data: grades = [] } = useQuery<Grade[]>({ queryKey: ["/api/grades"] });
+  const { data: dbSubjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
+  const { data: settings } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
+  const subjectOptions = dbSubjects.length > 0 ? dbSubjects.map(s => s.name) : SUBJECTS_FALLBACK;
+  const gradeA = parseInt(settings?.grade_a_min ?? "90");
+  const gradeB = parseInt(settings?.grade_b_min ?? "80");
+  const gradeC = parseInt(settings?.grade_c_min ?? "70");
+  const gradeD = parseInt(settings?.grade_d_min ?? "60");
 
   // Students sorted alphabetically
   const sortedStudents = [...students].sort((a, b) => a.name.localeCompare(b.name, "ar"));
@@ -64,7 +71,7 @@ export default function GradeEntry() {
   const watchScore = form.watch("score");
   const watchTotal = form.watch("totalMarks");
   const pct = watchTotal > 0 ? Math.round((watchScore / watchTotal) * 100) : 0;
-  const liveGrade = pct >= 90 ? "A" : pct >= 80 ? "B" : pct >= 70 ? "C" : pct >= 60 ? "D" : "F";
+  const liveGrade = pct >= gradeA ? "A" : pct >= gradeB ? "B" : pct >= gradeC ? "C" : pct >= gradeD ? "D" : "F";
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertGrade) => (await apiRequest("POST", "/api/grades", data)).json(),
@@ -213,7 +220,7 @@ export default function GradeEntry() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            {subjectOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         <FormMessage />

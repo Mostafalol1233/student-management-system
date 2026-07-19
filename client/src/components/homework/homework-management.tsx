@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertHomeworkSchema, type Homework, type InsertHomework, type Student, type Group, type HomeworkSubmission } from "@shared/schema";
+import { insertHomeworkSchema, type Homework, type InsertHomework, type Student, type Group, type HomeworkSubmission, type Subject } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BookOpen, Plus, Trash2, Check, Clock, AlertTriangle, Edit, Save } from "lucide-react";
 
-const SUBJECTS = ["الرياضيات","الفيزياء","الكيمياء","الأحياء","اللغة العربية","اللغة الإنجليزية","التاريخ","الجغرافيا","الحاسوب","العلوم","Mathematics","Physics","English","Science"];
+const SUBJECTS_FALLBACK = ["الرياضيات","الفيزياء","الكيمياء","الأحياء","اللغة العربية","اللغة الإنجليزية","التاريخ","الجغرافيا","الحاسوب","العلوم","Mathematics","Physics","English","Science"];
 
 export default function HomeworkManagement() {
   const { toast } = useToast();
@@ -29,6 +29,8 @@ export default function HomeworkManagement() {
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
   const { data: groups = [] } = useQuery<Group[]>({ queryKey: ["/api/groups"] });
   const { data: submissions = [] } = useQuery<HomeworkSubmission[]>({ queryKey: ["/api/homework/submissions"] });
+  const { data: dbSubjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
+  const subjectOptions = dbSubjects.length > 0 ? dbSubjects.map(s => s.name) : SUBJECTS_FALLBACK;
 
   const form = useForm<InsertHomework>({
     resolver: zodResolver(insertHomeworkSchema),
@@ -105,7 +107,7 @@ export default function HomeworkManagement() {
             <div className="space-y-1.5"><Label className="text-xs">المادة *</Label>
               <Select value={editForm.subject || ""} onValueChange={v => setEditForm(p => ({ ...p, subject: v }))}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                <SelectContent>{subjectOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5"><Label className="text-xs">المجموعة</Label>
@@ -156,7 +158,7 @@ export default function HomeworkManagement() {
                   <FormItem><FormLabel>المادة *</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl><SelectTrigger data-testid="select-hw-subject"><SelectValue placeholder="اختر المادة" /></SelectTrigger></FormControl>
-                      <SelectContent>{SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>{subjectOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                     </Select><FormMessage />
                   </FormItem>
                 )} />

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Video, Check, X, UserCheck, AlertCircle, Clock, Undo2 } from "lucide-react";
+import { Camera, Video, Check, X, UserCheck, AlertCircle, Clock, Undo2, UserX } from "lucide-react";
 import type { Session, Student, Attendance, InsertAttendance } from "@shared/schema";
 
 declare global { interface Window { Html5Qrcode: any; } }
@@ -52,6 +52,16 @@ export default function AttendanceScanner() {
       toast({ title: `${info.label === "حاضر" ? "✅" : "📋"} تم تسجيل ${info.label}`, description: student?.name });
     },
     onError: (e: any) => toast({ title: "فشل تسجيل الحضور", description: e.message, variant: "destructive" }),
+  });
+
+  const markAllAbsentMutation = useMutation({
+    mutationFn: async (sessionId: string) =>
+      (await apiRequest("POST", `/api/sessions/${sessionId}/mark-absences`, {})).json(),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance/session", activeSession?.id] });
+      toast({ title: `✅ تم تسجيل ${data.marked} غائب` });
+    },
+    onError: (e: any) => toast({ title: "فشل التسجيل", description: e.message, variant: "destructive" }),
   });
 
   const undoMutation = useMutation({
@@ -434,11 +444,18 @@ export default function AttendanceScanner() {
       {/* Unrecorded Students */}
       {unrecordedStudents.length > 0 && (
         <Card>
-          <div className="px-5 py-4 border-b flex items-center gap-2">
+          <div className="px-5 py-4 border-b flex items-center gap-2 flex-wrap">
             <AlertCircle size={16} className="text-amber-500" />
             <h3 className="font-semibold">لم يُسجَّلوا بعد</h3>
             <Badge variant="secondary" className="text-xs">{unrecordedStudents.length}</Badge>
             <span className="text-xs text-muted-foreground mr-2">اختر الحالة المناسبة لكل طالب</span>
+            <Button size="sm" variant="destructive" className="h-7 text-xs mr-auto"
+              disabled={markAllAbsentMutation.isPending || unrecordedStudents.length === 0}
+              onClick={() => activeSession && confirm(`تسجيل ${unrecordedStudents.length} طالب كغائبين؟`) && markAllAbsentMutation.mutate(activeSession.id)}
+              data-testid="button-mark-all-absent">
+              <UserX size={12} className="mr-1" />
+              {markAllAbsentMutation.isPending ? "جاري..." : "تسجيل الكل غائب"}
+            </Button>
           </div>
           <CardContent className="p-0">
             <div className="overflow-x-auto">

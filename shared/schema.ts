@@ -14,6 +14,8 @@ export const students = pgTable("students", {
   section: text("section").notNull(),
   groupId: varchar("group_id"),
   qrPath: text("qr_path"),
+  nationalId: text("national_id"),
+  photoUrl: text("photo_url"),
   status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -101,6 +103,7 @@ export const attendance = pgTable("attendance", {
   status: text("status").notNull(),
   timeRecorded: timestamp("time_recorded").defaultNow(),
   scanMethod: text("scan_method").notNull(),
+  notes: text("notes"),
 });
 
 export const grades = pgTable("grades", {
@@ -250,6 +253,7 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("reception"),
   teacherId: varchar("teacher_id"),
   status: text("status").notNull().default("active"),
+  lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

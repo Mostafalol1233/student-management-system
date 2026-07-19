@@ -13,9 +13,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Trash2, Users, Plus, BookOpen, AlertTriangle, AlertCircle, Edit, Save } from "lucide-react";
+import { useSettings } from "@/hooks/use-settings";
 
-const GRADES = ["الصف الأول","الصف الثاني","الصف الثالث","الصف الرابع","الصف الخامس","الصف السادس","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"];
-const SECTIONS = ["A","B","C","D","E"];
+const GRADES_FALLBACK = ["الصف الأول","الصف الثاني","الصف الثالث","الصف الرابع","الصف الخامس","الصف السادس","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"];
+const SECTIONS_FALLBACK = ["A","B","C","D","E","أ","ب","ج","د"];
 const COLORS = ["#6366f1","#10b981","#3b82f6","#f59e0b","#ef4444","#ec4899","#06b6d4","#84cc16"];
 
 function CapacityBar({ count, capacity }: { count: number; capacity: number }) {
@@ -49,6 +50,11 @@ export default function GroupManagement() {
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Group>>({});
+  const { get } = useSettings();
+  const GRADES = (get("grades_list","") || "").split(",").map(s=>s.trim()).filter(Boolean).length > 0
+    ? (get("grades_list","")).split(",").map(s=>s.trim()).filter(Boolean) : GRADES_FALLBACK;
+  const SECTIONS = (get("sections_list","") || "").split(",").map(s=>s.trim()).filter(Boolean).length > 0
+    ? (get("sections_list","")).split(",").map(s=>s.trim()).filter(Boolean) : SECTIONS_FALLBACK;
 
   const { data: groups = [], isLoading } = useQuery<Group[]>({ queryKey: ["/api/groups"] });
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
