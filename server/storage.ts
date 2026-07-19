@@ -73,12 +73,14 @@ export interface IStorage {
   getActiveSession(): Promise<Session | undefined>;
   createSession(s: InsertSession): Promise<Session>;
   updateSession(id: string, u: Partial<Session>): Promise<Session>;
+  deleteSession(id: string): Promise<boolean>;
 
   // Attendance
   getAttendanceBySession(sessionId: string): Promise<Attendance[]>;
   getAttendanceByStudent(studentId: string): Promise<Attendance[]>;
   createAttendance(a: InsertAttendance): Promise<Attendance>;
   getAttendanceRecord(studentId: string, sessionId: string): Promise<Attendance | undefined>;
+  updateAttendance(id: string, u: Partial<Attendance>): Promise<Attendance>;
   deleteAttendance(id: string): Promise<boolean>;
 
   // Grades
@@ -300,6 +302,7 @@ export class MemStorage implements IStorage {
     const s = this.sessions.get(id); if (!s) throw new Error("Session not found");
     const updated = { ...s, ...u }; this.sessions.set(id, updated); return updated;
   }
+  async deleteSession(id: string) { return this.sessions.delete(id); }
 
   // Attendance
   async getAttendanceBySession(sessionId: string) { return Array.from(this.attendance.values()).filter(a => a.sessionId === sessionId); }
@@ -309,6 +312,13 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const a: Attendance = { ...input, id, timeRecorded: new Date() };
     this.attendance.set(id, a); return a;
+  }
+  async updateAttendance(id: string, u: Partial<Attendance>) {
+    const a = Array.from(this.attendance.values()).find(x => x.id === id);
+    if (!a) throw new Error("Attendance record not found");
+    const updated = { ...a, ...u };
+    this.attendance.set(id, updated);
+    return updated;
   }
   async deleteAttendance(id: string) { return this.attendance.delete(id); }
 

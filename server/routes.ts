@@ -545,11 +545,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/attendance/:id", async (req, res) => {
     try {
-      const records = await storage.getAttendanceBySession(req.body.sessionId ?? "");
-      const record = Array.from(Object.values(records)).find((r: any) => r.id === req.params.id);
-      if (!record) return res.status(404).json({ message: "Attendance record not found" });
-      // Simple update: merge fields onto existing record via re-create trick
-      res.json({ ...record, ...req.body });
+      const updated = await storage.updateAttendance(req.params.id, req.body);
+      res.json(updated);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -557,6 +554,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const ok = await storage.deleteAttendance(req.params.id);
       if (!ok) return res.status(404).json({ message: "Attendance record not found" });
+      res.status(204).send();
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Auto-mark absences for a session
+  app.post("/api/sessions/:id/mark-absences", async (req, res) => {
+    try {
+      const session = await storage.getSession(req.params.id);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      let studentIds: string[];
+      if (session.groupId) {
+        const enr = await storage.getEnrollmentsByGroup(session.groupId);
+        studentIds = enr.map(e => e.studentId);
+      } else {
+        studentIds = (await storage.getAllStudents()).map(s => s.id);
+      }
+      const existing = await storage.getAttendanceBySession(req.params.id);
+      const existingIds = new Set(existing.map(a => a.studentId));
+      const created = [];
+      for (const studentId of studentIds) {
+        if (!existingIds.has(studentId)) {
+          const r = await storage.createAttendance({ studentId, sessionId: req.params.id, status: "absent", scanMethod: "manual" });
+          created.push(r);
+        }
+      }
+      res.json({ marked: created.length, records: created });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Delete session
+  app.delete("/api/sessions/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteSession(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Session not found" });
       res.status(204).send();
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -1457,7 +1488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // ── Salary report ────────────────────────────────────────────────────────
+  // ── Salary report (with optional month/year filter) ──────────────────────
   app.get("/api/teachers/:id/salary-report", async (req, res) => {
     try {
       const teacher = await storage.getTeacher(req.params.id);
@@ -1467,14 +1498,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activeStudents = enrollments.filter(e => e.teacherId === teacher.id && e.status === "active");
       const studentCount = activeStudents.length;
       const studentIds = activeStudents.map(e => e.studentId);
-      const teacherRevenue = finances
-        .filter(f => studentIds.includes(f.studentId) && f.status === "paid")
-        .reduce((s, f) => s + (f.paid ?? 0), 0);
+      // Optional period filter
+      const { month, year } = req.query as { month?: string; year?: string };
+      const periodTag = month && year ? `${year}-${String(month).padStart(2, "0")}` : null;
+      const periodFinances = finances.filter(f => {
+        if (!studentIds.includes(f.studentId) || f.status !== "paid") return false;
+        if (!periodTag) return true;
+        return f.dueDate?.startsWith(periodTag);
+      });
+      const teacherRevenue = periodFinances.reduce((s, f) => s + (f.paid ?? 0), 0);
       let expectedSalary = 0;
       if (teacher.salaryType === "fixed") expectedSalary = teacher.salaryAmount || 0;
       else if (teacher.salaryType === "per_student") expectedSalary = (teacher.salaryAmount || 0) * studentCount;
       else if (teacher.salaryType === "percentage") expectedSalary = teacherRevenue * ((teacher.salaryAmount || 0) / 100);
-      res.json({ teacher, studentCount, teacherRevenue, expectedSalary, paid: 0, remaining: expectedSalary });
+      // Calculate already-paid salary expenses for this teacher
+      const allExpenses = await storage.getAllExpenses();
+      const salaryExpenses = allExpenses.filter(e => {
+        const matchTeacher = e.description?.includes(teacher.name);
+        if (!matchTeacher) return false;
+        if (!periodTag) return true;
+        return e.date?.startsWith(periodTag);
+      });
+      const paid = salaryExpenses.reduce((s, e) => s + e.amount, 0);
+      const remaining = Math.max(0, expectedSalary - paid);
+      res.json({ teacher, studentCount, teacherRevenue, expectedSalary, paid, remaining, period: periodTag });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

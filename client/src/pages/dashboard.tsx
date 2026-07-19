@@ -18,6 +18,7 @@ import Timetable from "@/components/timetable/timetable";
 import ExamBuilder from "@/components/exams/exam-builder";
 import TeacherManagement from "@/components/teachers/teacher-management";
 import ReceptionDashboard from "@/components/reception/reception-dashboard";
+import UserManagement from "@/components/users/user-management";
 
 export type ActiveSection =
   | "overview"
@@ -35,7 +36,8 @@ export type ActiveSection =
   | "exam-builder"
   | "settings"
   | "teachers"
-  | "reception";
+  | "reception"
+  | "user-management";
 
 interface DashboardProps {
   initialSection?: ActiveSection;
@@ -98,6 +100,7 @@ export default function Dashboard({ initialSection = "overview", ...props }: Das
       case "settings":            return <SettingsPage />;
       case "teachers":            return <TeacherManagement />;
       case "reception":           return <ReceptionDashboard />;
+      case "user-management":     return <UserManagement />;
       default:                    return <Overview onNavigate={handleSectionChange} />;
     }
   };
