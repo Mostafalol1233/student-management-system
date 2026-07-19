@@ -10,10 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Edit, Users, BookOpen, DollarSign, Search, TrendingUp, CheckCircle, Clock, Banknote } from "lucide-react";
+import TeacherAttendancePanel from "./teacher-attendance";
+import LeaveManagement from "./leave-management";
 
 const SALARY_TYPES = [
   { value: "fixed",       label: "مرتب ثابت",           hint: "مبلغ ثابت كل شهر" },
@@ -218,7 +221,7 @@ export default function TeacherManagement() {
 
   const form = useForm<InsertTeacher>({
     resolver: zodResolver(insertTeacherSchema),
-    defaultValues: { name: "", subject: "", phone: "", email: "", salaryType: "fixed", salaryAmount: 0, notes: "" },
+    defaultValues: { name: "", subject: "", phone: "", email: "", salaryType: "fixed", salaryAmount: 0, notes: "", hireDate: "", contractType: "part_time", nationalId: "", subjects: "" },
   });
 
   const createMutation = useMutation({
@@ -263,7 +266,19 @@ export default function TeacherManagement() {
 
   const openEdit = (teacher: Teacher) => {
     setEditingTeacher(teacher);
-    form.reset({ name: teacher.name, subject: teacher.subject, phone: teacher.phone || "", email: teacher.email || "", salaryType: teacher.salaryType, salaryAmount: teacher.salaryAmount || 0, notes: teacher.notes || "" });
+    form.reset({
+      name: teacher.name,
+      subject: teacher.subject,
+      phone: teacher.phone || "",
+      email: teacher.email || "",
+      salaryType: teacher.salaryType,
+      salaryAmount: teacher.salaryAmount || 0,
+      notes: teacher.notes || "",
+      hireDate: teacher.hireDate || "",
+      contractType: teacher.contractType || "part_time",
+      nationalId: teacher.nationalId || "",
+      subjects: teacher.subjects || "",
+    });
     setShowForm(true);
   };
 
@@ -276,6 +291,22 @@ export default function TeacherManagement() {
 
   return (
     <div className="space-y-6">
+      <Tabs defaultValue="teachers" dir="rtl">
+        <TabsList>
+          <TabsTrigger value="teachers">المعلمون</TabsTrigger>
+          <TabsTrigger value="attendance">الحضور اليومي</TabsTrigger>
+          <TabsTrigger value="leaves">الإجازات</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="attendance" className="mt-4">
+          <TeacherAttendancePanel />
+        </TabsContent>
+
+        <TabsContent value="leaves" className="mt-4">
+          <LeaveManagement />
+        </TabsContent>
+
+        <TabsContent value="teachers" className="mt-4">
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
@@ -442,6 +473,38 @@ export default function TeacherManagement() {
                   <FormControl><Input placeholder="ملاحظات اختيارية..." {...field} value={field.value || ""} /></FormControl>
                   <FormMessage /></FormItem>
               )} />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="hireDate" render={({ field }) => (
+                  <FormItem><FormLabel>تاريخ التوظيف</FormLabel>
+                    <FormControl><Input type="date" {...field} value={field.value || ""} /></FormControl>
+                    <FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="contractType" render={({ field }) => (
+                  <FormItem><FormLabel>نوع العقد</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "part_time"}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="full_time">دوام كامل</SelectItem>
+                        <SelectItem value="part_time">دوام جزئي</SelectItem>
+                        <SelectItem value="consultant">مستشار/مستقل</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage /></FormItem>
+                )} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="nationalId" render={({ field }) => (
+                  <FormItem><FormLabel>الرقم القومي / الهوية</FormLabel>
+                    <FormControl><Input placeholder="رقم الهوية..." {...field} value={field.value || ""} /></FormControl>
+                    <FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="subjects" render={({ field }) => (
+                  <FormItem><FormLabel>المواد الأخرى</FormLabel>
+                    <FormControl><Input placeholder="فيزياء, كيمياء" {...field} value={field.value || ""} /></FormControl>
+                    <FormDescription className="text-[10px]">مواد إضافية يدرّسها هذا المعلم (مفصولة بفاصلة)</FormDescription>
+                    <FormMessage /></FormItem>
+                )} />
+              </div>
               <div className="flex justify-end gap-2 pt-1">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>إلغاء</Button>
                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-teacher">
@@ -462,6 +525,8 @@ export default function TeacherManagement() {
           {salaryTeacher && <SalarySettlementPanel teacher={salaryTeacher} onClose={() => setSalaryTeacher(null)} />}
         </DialogContent>
       </Dialog>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

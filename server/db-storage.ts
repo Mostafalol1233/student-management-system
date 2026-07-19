@@ -1,10 +1,11 @@
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql as sqlExpr } from "drizzle-orm";
 import {
   students, teachers, subjects, groups, enrollments, subscriptions,
   sessions, attendance, grades, homework, homeworkSubmissions, finances,
   studentNotes, exams, examQuestions, examSubmissions, automationRules,
-  automationLogs, expenses, appSettings, users,
+  automationLogs, expenses, appSettings, users, auditLogs, classrooms,
+  teacherAttendance, leaveRequests,
 } from "@shared/schema";
 import type {
   Student, InsertStudent, Teacher, InsertTeacher, Subject, InsertSubject,
@@ -15,6 +16,8 @@ import type {
   ExamQuestion, InsertExamQuestion, ExamSubmission, InsertExamSubmission,
   AutomationRule, InsertAutomationRule, AutomationLog, InsertAutomationLog,
   Expense, InsertExpense, User, InsertUser,
+  AuditLog, InsertAuditLog, Classroom, InsertClassroom,
+  TeacherAttendance, InsertTeacherAttendance, LeaveRequest, InsertLeaveRequest,
 } from "@shared/schema";
 
 export class DatabaseStorage {
@@ -485,5 +488,98 @@ export class DatabaseStorage {
   }
   async countUsers(): Promise<number> {
     const r = await db.select().from(users); return r.length;
+  }
+
+  // ── Audit Logs ─────────────────────────────────────────────────────────────
+  async getAuditLogs(): Promise<AuditLog[]> {
+    return db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(500);
+  }
+  async createAuditLog(input: InsertAuditLog): Promise<AuditLog> {
+    const r = await db.insert(auditLogs).values(input).returning(); return r[0];
+  }
+
+  // ── Classrooms ─────────────────────────────────────────────────────────────
+  async getAllClassrooms(): Promise<Classroom[]> {
+    return db.select().from(classrooms).where(eq(classrooms.status, "active")).orderBy(classrooms.name);
+  }
+  async getClassroom(id: string): Promise<Classroom | undefined> {
+    const r = await db.select().from(classrooms).where(eq(classrooms.id, id)); return r[0];
+  }
+  async createClassroom(input: InsertClassroom): Promise<Classroom> {
+    const r = await db.insert(classrooms).values(input).returning(); return r[0];
+  }
+  async updateClassroom(id: string, u: Partial<Classroom>): Promise<Classroom> {
+    const r = await db.update(classrooms).set(u).where(eq(classrooms.id, id)).returning();
+    if (!r[0]) throw new Error("Classroom not found"); return r[0];
+  }
+  async deleteClassroom(id: string): Promise<boolean> {
+    const r = await db.update(classrooms).set({ status: "inactive" }).where(eq(classrooms.id, id)).returning();
+    return r.length > 0;
+  }
+
+  // ── Teacher Attendance ─────────────────────────────────────────────────────
+  async getTeacherAttendanceByTeacher(teacherId: string): Promise<TeacherAttendance[]> {
+    return db.select().from(teacherAttendance).where(eq(teacherAttendance.teacherId, teacherId)).orderBy(desc(teacherAttendance.date));
+  }
+  async getAllTeacherAttendance(): Promise<TeacherAttendance[]> {
+    return db.select().from(teacherAttendance).orderBy(desc(teacherAttendance.date));
+  }
+  async getTeacherAttendanceByDate(date: string): Promise<TeacherAttendance[]> {
+    return db.select().from(teacherAttendance).where(eq(teacherAttendance.date, date));
+  }
+  async createTeacherAttendance(input: InsertTeacherAttendance): Promise<TeacherAttendance> {
+    // upsert by teacherId + date
+    const existing = await db.select().from(teacherAttendance)
+      .where(and(eq(teacherAttendance.teacherId, input.teacherId), eq(teacherAttendance.date, input.date)));
+    if (existing[0]) {
+      const r = await db.update(teacherAttendance).set(input).where(eq(teacherAttendance.id, existing[0].id)).returning();
+      return r[0];
+    }
+    const r = await db.insert(teacherAttendance).values(input).returning(); return r[0];
+  }
+  async updateTeacherAttendance(id: string, u: Partial<TeacherAttendance>): Promise<TeacherAttendance> {
+    const r = await db.update(teacherAttendance).set(u).where(eq(teacherAttendance.id, id)).returning();
+    if (!r[0]) throw new Error("Record not found"); return r[0];
+  }
+  async deleteTeacherAttendance(id: string): Promise<boolean> {
+    const r = await db.delete(teacherAttendance).where(eq(teacherAttendance.id, id)).returning(); return r.length > 0;
+  }
+
+  // ── Leave Requests ──────────────────────────────────────────────────────────
+  async getAllLeaveRequests(): Promise<LeaveRequest[]> {
+    return db.select().from(leaveRequests).orderBy(desc(leaveRequests.createdAt));
+  }
+  async getLeaveRequestsByTeacher(teacherId: string): Promise<LeaveRequest[]> {
+    return db.select().from(leaveRequests).where(eq(leaveRequests.teacherId, teacherId)).orderBy(desc(leaveRequests.createdAt));
+  }
+  async createLeaveRequest(input: InsertLeaveRequest): Promise<LeaveRequest> {
+    const r = await db.insert(leaveRequests).values(input).returning(); return r[0];
+  }
+  async updateLeaveRequest(id: string, u: Partial<LeaveRequest>): Promise<LeaveRequest> {
+    const r = await db.update(leaveRequests).set(u).where(eq(leaveRequests.id, id)).returning();
+    if (!r[0]) throw new Error("Leave request not found"); return r[0];
+  }
+  async deleteLeaveRequest(id: string): Promise<boolean> {
+    const r = await db.delete(leaveRequests).where(eq(leaveRequests.id, id)).returning(); return r.length > 0;
+  }
+
+  // ── P&L Report ─────────────────────────────────────────────────────────────
+  async getPnlReport(month: string, year: string): Promise<{ revenue: number; expenses: number; salaries: number; net: number }> {
+    const prefix = `${year}-${month.padStart(2, "0")}`;
+    // Revenue: sum of paid amounts for finances in this month
+    const financeRows = await db.select().from(finances);
+    const revenue = financeRows
+      .filter(f => (f.paidDate?.startsWith(prefix) || f.createdAt?.toISOString().startsWith(prefix)))
+      .reduce((sum, f) => sum + (f.paid || 0), 0);
+    // Expenses: general expenses in this month
+    const expenseRows = await db.select().from(expenses);
+    const totalExpenses = expenseRows
+      .filter(e => e.date.startsWith(prefix))
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
+    // Salaries: expense records with category "salary" or "راتب"
+    const salaries = expenseRows
+      .filter(e => e.date.startsWith(prefix) && (e.category === "salary" || e.category === "راتب" || e.category === "رواتب"))
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
+    return { revenue, expenses: totalExpenses - salaries, salaries, net: revenue - totalExpenses };
   }
 }

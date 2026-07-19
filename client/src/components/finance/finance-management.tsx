@@ -24,6 +24,8 @@ import {
   DollarSign, Plus, Trash2, AlertCircle, CheckCircle2,
   TrendingUp, TrendingDown, Wallet, Receipt, PieChart, Printer, Edit, Save, Search, X,
 } from "lucide-react";
+import PaymentReceipt from "./payment-receipt";
+import { useSettings } from "@/hooks/use-settings";
 
 const FINANCE_TYPES = ["اشتراك شهري","اشتراك فصلي","اشتراك سنوي","رسوم تسجيل","كتب ومذكرات","أنشطة","أخرى"];
 
@@ -39,12 +41,24 @@ const EXPENSE_CATEGORIES: { value: string; label: string; color: string }[] = [
 function categoryLabel(cat: string) { return EXPENSE_CATEGORIES.find(c => c.value === cat)?.label ?? cat; }
 function categoryColor(cat: string) { return EXPENSE_CATEGORIES.find(c => c.value === cat)?.color ?? "bg-gray-500"; }
 
+const PAYMENT_METHODS = [
+  { value: "cash", label: "نقداً" },
+  { value: "transfer", label: "تحويل بنكي" },
+  { value: "vodafone_cash", label: "فودافون كاش" },
+  { value: "instapay", label: "انستاباي" },
+  { value: "other", label: "أخرى" },
+];
+
 export default function FinanceManagement() {
   const { toast } = useToast();
+  const { get } = useSettings();
 
   // Edit finance state
   const [editingFinance, setEditingFinance] = useState<Finance | null>(null);
   const [editFinanceForm, setEditFinanceForm] = useState<Partial<Finance>>({});
+
+  // Receipt state
+  const [receiptRecord, setReceiptRecord] = useState<Finance | null>(null);
 
   // Edit expense state
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -232,7 +246,7 @@ export default function FinanceManagement() {
                 <Input type="number" min="0" className="h-8 text-sm" value={editFinanceForm.paid ?? 0}
                   onChange={e => {
                     const paid = parseFloat(e.target.value) || 0;
-                    const status = paid >= (editFinanceForm.amount ?? 0) ? "paid" : "pending";
+                    const status = paid >= (editFinanceForm.amount ?? 0) ? "paid" : paid > 0 ? "partial" : "pending";
                     setEditFinanceForm(p => ({ ...p, paid, status }));
                   }} />
               </div>
@@ -248,11 +262,33 @@ export default function FinanceManagement() {
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="paid">مدفوع</SelectItem>
+                  <SelectItem value="partial">مدفوع جزئياً</SelectItem>
                   <SelectItem value="pending">معلق</SelectItem>
                   <SelectItem value="overdue">متأخر</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">طريقة الدفع</Label>
+              <Select value={editFinanceForm.paymentMethod || "cash"} onValueChange={v => setEditFinanceForm(p => ({ ...p, paymentMethod: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">رقم الإيصال (اختياري)</Label>
+              <Input className="h-8 text-sm" placeholder="مثال: REC-001" value={editFinanceForm.receiptNumber || ""}
+                onChange={e => setEditFinanceForm(p => ({ ...p, receiptNumber: e.target.value }))} />
+            </div>
+            {(editFinanceForm.status === "paid" || editFinanceForm.status === "partial") && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">تاريخ الدفع (اختياري)</Label>
+                <Input type="date" className="h-8 text-sm" value={editFinanceForm.paidDate || ""}
+                  onChange={e => setEditFinanceForm(p => ({ ...p, paidDate: e.target.value }))} />
+              </div>
+            )}
             <Button className="w-full" disabled={updateFinanceMutation.isPending}
               onClick={() => {
                 if (!editingFinance) return;
@@ -265,6 +301,24 @@ export default function FinanceManagement() {
               {updateFinanceMutation.isPending ? "جاري الحفظ..." : "حفظ التغييرات"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt Dialog */}
+      <Dialog open={!!receiptRecord} onOpenChange={o => { if (!o) setReceiptRecord(null); }}>
+        <DialogContent className="max-w-md p-0">
+          {receiptRecord && (() => {
+            const student = students.find(s => s.id === receiptRecord.studentId);
+            const centerName = get("app_name", "المركز");
+            return student ? (
+              <PaymentReceipt
+                finance={receiptRecord}
+                student={student}
+                centerName={centerName}
+                onClose={() => setReceiptRecord(null)}
+              />
+            ) : null;
+          })()}
         </DialogContent>
       </Dialog>
 

@@ -8,6 +8,8 @@ export const students = pgTable("students", {
   name: text("name").notNull(),
   guardianPhone: text("guardian_phone").notNull(),
   guardianPhone2: text("guardian_phone2"),
+  guardianName: text("guardian_name"),
+  guardianRelation: text("guardian_relation"),
   address: text("address"),
   code: text("code").notNull().unique(),
   gradeLevel: text("grade_level").notNull(),
@@ -16,6 +18,8 @@ export const students = pgTable("students", {
   qrPath: text("qr_path"),
   nationalId: text("national_id"),
   photoUrl: text("photo_url"),
+  enrollmentDate: text("enrollment_date"),
+  withdrawalReason: text("withdrawal_reason"),
   status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -24,8 +28,12 @@ export const teachers = pgTable("teachers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   subject: text("subject").notNull(),
+  subjects: text("subjects"),
   phone: text("phone"),
   email: text("email"),
+  nationalId: text("national_id"),
+  hireDate: text("hire_date"),
+  contractType: text("contract_type").default("part_time"),
   salaryType: text("salary_type").notNull().default("fixed"),
   salaryAmount: real("salary_amount").default(0),
   notes: text("notes"),
@@ -92,6 +100,7 @@ export const sessions = pgTable("sessions", {
   groupId: varchar("group_id"),
   teacherId: varchar("teacher_id"),
   subjectId: varchar("subject_id"),
+  classroomId: varchar("classroom_id"),
   status: text("status").notNull().default("scheduled"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -149,6 +158,10 @@ export const finances = pgTable("finances", {
   amount: real("amount").notNull(),
   paid: real("paid").default(0),
   dueDate: text("due_date").notNull(),
+  paidDate: text("paid_date"),
+  month: text("month"),
+  paymentMethod: text("payment_method").default("cash"),
+  receiptNumber: text("receipt_number"),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -245,6 +258,40 @@ export const appSettings = pgTable("app_settings", {
   value: text("value").notNull(),
 });
 
+export const classrooms = pgTable("classrooms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  capacity: integer("capacity").default(30),
+  floor: text("floor"),
+  notes: text("notes"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const teacherAttendance = pgTable("teacher_attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teacherId: varchar("teacher_id").notNull().references(() => teachers.id),
+  date: text("date").notNull(),
+  clockIn: text("clock_in"),
+  clockOut: text("clock_out"),
+  status: text("status").notNull().default("present"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const leaveRequests = pgTable("leave_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teacherId: varchar("teacher_id").notNull().references(() => teachers.id),
+  type: text("type").notNull().default("annual"),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  reason: text("reason"),
+  status: text("status").notNull().default("pending"),
+  approvedBy: text("approved_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -276,6 +323,9 @@ export const insertExamQuestionSchema = createInsertSchema(examQuestions).omit({
 export const insertExamSubmissionSchema = createInsertSchema(examSubmissions).omit({ id: true, createdAt: true, gradedAt: true });
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export const insertClassroomSchema = createInsertSchema(classrooms).omit({ id: true, createdAt: true, status: true });
+export const insertTeacherAttendanceSchema = createInsertSchema(teacherAttendance).omit({ id: true, createdAt: true });
+export const insertLeaveRequestSchema = createInsertSchema(leaveRequests).omit({ id: true, createdAt: true, status: true, approvedBy: true });
 export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({ id: true, createdAt: true, runCount: true, lastRun: true, status: true });
 export const insertAutomationLogSchema = createInsertSchema(automationLogs).omit({ id: true, createdAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -323,5 +373,11 @@ export type InsertAutomationRule = z.infer<typeof insertAutomationRuleSchema>;
 export type AutomationLog = typeof automationLogs.$inferSelect;
 export type InsertAutomationLog = z.infer<typeof insertAutomationLogSchema>;
 export type AppSetting = typeof appSettings.$inferSelect;
+export type Classroom = typeof classrooms.$inferSelect;
+export type InsertClassroom = z.infer<typeof insertClassroomSchema>;
+export type TeacherAttendance = typeof teacherAttendance.$inferSelect;
+export type InsertTeacherAttendance = z.infer<typeof insertTeacherAttendanceSchema>;
+export type LeaveRequest = typeof leaveRequests.$inferSelect;
+export type InsertLeaveRequest = z.infer<typeof insertLeaveRequestSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

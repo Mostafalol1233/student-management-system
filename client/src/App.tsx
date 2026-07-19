@@ -67,6 +67,7 @@ function Router() {
       <Route path="/teachers" component={() => <ProtectedRoute component={Page("teachers")} />} />
       <Route path="/reception" component={() => <ProtectedRoute component={Page("reception")} />} />
       <Route path="/users" component={() => <ProtectedRoute component={Page("user-management")} />} />
+      <Route path="/classrooms" component={() => <ProtectedRoute component={Page("classrooms")} />} />
       <Route path="/student/:id" component={(props) => <ProtectedRoute component={StudentProfile} {...props} />} />
       <Route path="/student-comprehensive/:id" component={(props) => <ProtectedRoute component={StudentComprehensiveProfile} {...props} />} />
       <Route component={NotFound} />

@@ -8,10 +8,13 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, GraduationCap, Calendar, DollarSign, Save, Upload, ImageIcon, X, Download, ShieldCheck } from "lucide-react";
+import { Settings, GraduationCap, Calendar, DollarSign, Save, Upload, ImageIcon, X, Download, ShieldCheck, FileText } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import AuditLogViewer from "./audit-log-viewer";
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const { data: settings = {} } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
   const [local, setLocal] = useState<Record<string, string>>({});
@@ -65,12 +68,13 @@ export default function SettingsPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <Tabs defaultValue="general">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="general"><Settings size={14} className="mr-1" />عام</TabsTrigger>
           <TabsTrigger value="grading"><GraduationCap size={14} className="mr-1" />التقدير</TabsTrigger>
           <TabsTrigger value="semester"><Calendar size={14} className="mr-1" />الفصل</TabsTrigger>
           <TabsTrigger value="finance"><DollarSign size={14} className="mr-1" />المالية</TabsTrigger>
           <TabsTrigger value="security"><ShieldCheck size={14} className="mr-1" />الأمان</TabsTrigger>
+          <TabsTrigger value="audit"><FileText size={14} className="mr-1" />سجل التدقيق</TabsTrigger>
         </TabsList>
 
         {/* General */}
@@ -308,6 +312,17 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* Audit Log */}
+        <TabsContent value="audit" className="mt-4">
+          {user?.role === "admin" ? (
+            <AuditLogViewer />
+          ) : (
+            <div className="p-10 text-center text-muted-foreground text-sm">
+              ليس لديك صلاحية عرض سجل التدقيق
+            </div>
+          )}
+        </TabsContent>
+
         {/* Security */}
         <TabsContent value="security" className="mt-4 space-y-4">
           <Card>

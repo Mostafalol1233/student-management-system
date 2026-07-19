@@ -451,6 +451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!deleted) {
         return res.status(404).json({ message: "Student not found" });
       }
+      storage.createAuditLog({ entity: "student", entityId: req.params.id, action: "delete", actor: (req as any).user?.name || "admin", details: null }).catch(() => {});
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete student" });
@@ -670,13 +671,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!deleted) {
         return res.status(404).json({ message: "Grade not found" });
       }
+      storage.createAuditLog({ entity: "grade", entityId: req.params.id, action: "delete", actor: (req as any).user?.name || "unknown", details: null }).catch(() => {});
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete grade" });
     }
   });
 
-  // WhatsApp API routes
+  // WhatsApp API routes — require auth on all
+  app.use("/api/whatsapp", requireAuth);
   app.get("/api/whatsapp/status", async (req, res) => {
     try {
       const status = whatsappService.getConnectionStatus();
@@ -1001,7 +1004,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/finances", async (req, res) => {
     try {
       const data = insertFinanceSchema.parse(req.body);
-      res.status(201).json(await storage.createFinance(data));
+      const record = await storage.createFinance(data);
+      storage.createAuditLog({ entity: "finance", entityId: record.id, action: "create", actor: (req as any).user?.name || "unknown", details: JSON.stringify({ amount: record.amount }) }).catch(() => {});
+      res.status(201).json(record);
     } catch (e) {
       if (e instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: e.errors });
       res.status(500).json({ message: "Failed to create finance record" });
@@ -1009,14 +1014,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/finances/:id", async (req, res) => {
-    try { res.json(await storage.updateFinance(req.params.id, req.body)); }
-    catch (e: any) { res.status(500).json({ message: e.message }); }
+    try {
+      const record = await storage.updateFinance(req.params.id, req.body);
+      storage.createAuditLog({ entity: "finance", entityId: req.params.id, action: "update", actor: (req as any).user?.name || "unknown", details: JSON.stringify(req.body) }).catch(() => {});
+      res.json(record);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.delete("/api/finances/:id", async (req, res) => {
     try {
       const ok = await storage.deleteFinance(req.params.id);
       if (!ok) return res.status(404).json({ message: "Finance record not found" });
+      storage.createAuditLog({ entity: "finance", entityId: req.params.id, action: "delete", actor: (req as any).user?.name || "unknown", details: null }).catch(() => {});
       res.status(204).send();
     } catch { res.status(500).json({ message: "Failed to delete finance record" }); }
   });
@@ -1388,6 +1397,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const ok = await storage.deleteTeacher(req.params.id);
       if (!ok) return res.status(404).json({ message: "Teacher not found" });
+      storage.createAuditLog({ entity: "teacher", entityId: req.params.id, action: "delete", actor: (req as any).user?.name || "admin", details: null }).catch(() => {});
       res.status(204).send();
     } catch (e: any) { res.status(500).json({ message: e.message || "Failed to delete teacher" }); }
   });
@@ -1495,6 +1505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Expenses ────────────────────────────────────────────────────────────
+  app.use("/api/expenses", requireAuth);
   app.get("/api/expenses", async (_req, res) => {
     try { res.json(await storage.getAllExpenses()); }
     catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -1504,21 +1515,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { insertExpenseSchema } = await import("@shared/schema");
       const data = insertExpenseSchema.parse(req.body);
-      res.status(201).json(await storage.createExpense(data));
+      const expense = await storage.createExpense(data);
+      storage.createAuditLog({ entity: "expense", entityId: expense.id, action: "create", actor: (req as any).user?.name || "unknown", details: JSON.stringify({ amount: expense.amount, category: expense.category }) }).catch(() => {});
+      res.status(201).json(expense);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
   app.put("/api/expenses/:id", async (req, res) => {
-    try { res.json(await storage.updateExpense(req.params.id, req.body)); }
-    catch (e: any) { res.status(500).json({ message: e.message }); }
+    try {
+      const expense = await storage.updateExpense(req.params.id, req.body);
+      storage.createAuditLog({ entity: "expense", entityId: req.params.id, action: "update", actor: (req as any).user?.name || "unknown", details: JSON.stringify(req.body) }).catch(() => {});
+      res.json(expense);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.delete("/api/expenses/:id", async (req, res) => {
     try {
       const ok = await storage.deleteExpense(req.params.id);
       if (!ok) return res.status(404).json({ message: "Expense not found" });
+      storage.createAuditLog({ entity: "expense", entityId: req.params.id, action: "delete", actor: (req as any).user?.name || "unknown", details: null }).catch(() => {});
       res.status(204).send();
     } catch { res.status(500).json({ message: "Failed to delete expense" }); }
+  });
+
+  // ── Classrooms ─────────────────────────────────────────────────────────────
+  app.get("/api/classrooms", requireAuth, async (_req, res) => {
+    try { res.json(await storage.getAllClassrooms()); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post("/api/classrooms", requireRole("admin", "reception"), async (req, res) => {
+    try {
+      const { insertClassroomSchema } = await import("@shared/schema");
+      const data = insertClassroomSchema.parse(req.body);
+      res.status(201).json(await storage.createClassroom(data));
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+  app.put("/api/classrooms/:id", requireRole("admin", "reception"), async (req, res) => {
+    try { res.json(await storage.updateClassroom(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.delete("/api/classrooms/:id", requireRole("admin"), async (req, res) => {
+    try {
+      const ok = await storage.deleteClassroom(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Classroom not found" });
+      res.status(204).send();
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Teacher Attendance ─────────────────────────────────────────────────────
+  app.get("/api/teacher-attendance", requireAuth, async (req, res) => {
+    try {
+      const { date, teacherId } = req.query as { date?: string; teacherId?: string };
+      if (teacherId) return res.json(await storage.getTeacherAttendanceByTeacher(teacherId));
+      if (date) return res.json(await storage.getTeacherAttendanceByDate(date));
+      res.json(await storage.getAllTeacherAttendance());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post("/api/teacher-attendance", requireAuth, async (req, res) => {
+    try {
+      const { insertTeacherAttendanceSchema } = await import("@shared/schema");
+      const data = insertTeacherAttendanceSchema.parse(req.body);
+      res.status(201).json(await storage.createTeacherAttendance(data));
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+  app.put("/api/teacher-attendance/:id", requireAuth, async (req, res) => {
+    try { res.json(await storage.updateTeacherAttendance(req.params.id, req.body)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.delete("/api/teacher-attendance/:id", requireRole("admin"), async (req, res) => {
+    try {
+      const ok = await storage.deleteTeacherAttendance(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Record not found" });
+      res.status(204).send();
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Leave Requests ──────────────────────────────────────────────────────────
+  app.get("/api/leaves", requireAuth, async (req, res) => {
+    try {
+      const { teacherId } = req.query as { teacherId?: string };
+      if (teacherId) return res.json(await storage.getLeaveRequestsByTeacher(teacherId));
+      res.json(await storage.getAllLeaveRequests());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post("/api/leaves", requireAuth, async (req, res) => {
+    try {
+      const { insertLeaveRequestSchema } = await import("@shared/schema");
+      const data = insertLeaveRequestSchema.parse(req.body);
+      res.status(201).json(await storage.createLeaveRequest(data));
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+  app.put("/api/leaves/:id", requireAuth, async (req, res) => {
+    try {
+      const { status, approvedBy, notes } = req.body;
+      const updated = await storage.updateLeaveRequest(req.params.id, { status, approvedBy, notes });
+      if (status === "approved" || status === "rejected") {
+        storage.createAuditLog({ entity: "leave_request", entityId: req.params.id, action: status, actor: (req as any).user?.name || "admin", details: null }).catch(() => {});
+      }
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.delete("/api/leaves/:id", requireRole("admin"), async (req, res) => {
+    try {
+      const ok = await storage.deleteLeaveRequest(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Leave request not found" });
+      res.status(204).send();
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── P&L Report ─────────────────────────────────────────────────────────────
+  app.get("/api/reports/pnl", requireRole("admin", "accountant"), async (req, res) => {
+    try {
+      const { month = String(new Date().getMonth() + 1), year = String(new Date().getFullYear()) } = req.query as { month?: string; year?: string };
+      res.json(await storage.getPnlReport(month, year));
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Audit Logs ─────────────────────────────────────────────────────────────
+  app.get("/api/audit-logs", requireRole("admin"), async (_req, res) => {
+    try { res.json(await storage.getAuditLogs()); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // ── Salary payment recording ──────────────────────────────────────────────

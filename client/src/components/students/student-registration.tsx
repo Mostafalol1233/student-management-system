@@ -20,12 +20,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import QRGenerator, { QRGeneratorRef } from "@/components/ui/qr-generator";
 import { Plus, Download, Upload, FileText, AlertCircle, CheckCircle, Search, Trash2, Eye, Users, UserPlus, Printer, GraduationCap, ChevronDown, ArrowUpDown } from "lucide-react";
+import EnrollmentPanel from "./enrollment-panel";
 
 const GRADES_FALLBACK = ["الصف الأول", "الصف الثاني", "الصف الثالث", "الصف الرابع", "الصف الخامس", "الصف السادس", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTIONS_FALLBACK = ["A", "B", "C", "D", "E", "أ", "ب", "ج", "د"];
@@ -155,7 +157,19 @@ export default function StudentRegistration() {
 
   const form = useForm<InsertStudent>({
     resolver: zodResolver(insertStudentSchema),
-    defaultValues: { name: "", guardianPhone: "", guardianPhone2: undefined, address: undefined, gradeLevel: "", section: "", groupId: undefined },
+    defaultValues: {
+      name: "",
+      guardianPhone: "",
+      guardianPhone2: undefined,
+      address: undefined,
+      gradeLevel: "",
+      section: "",
+      groupId: undefined,
+      guardianName: "",
+      guardianRelation: undefined,
+      enrollmentDate: undefined,
+      withdrawalReason: undefined,
+    },
   });
 
   const createMutation = useMutation({
@@ -358,6 +372,37 @@ export default function StudentRegistration() {
                               <FormMessage />
                             </FormItem>
                           )} />
+                          <FormField control={form.control} name="guardianName" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>اسم ولي الأمر</FormLabel>
+                              <FormControl>
+                                <Input placeholder="محمد أحمد" data-testid="input-guardian-name" {...field} value={field.value || ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )} />
+                          <FormField control={form.control} name="guardianRelation" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>صلة القرابة</FormLabel>
+                              <Select onValueChange={v => field.onChange(v === "none" ? undefined : v)} value={field.value || "none"}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-guardian-relation">
+                                    <SelectValue placeholder="اختر الصلة..." />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="none">— اختر —</SelectItem>
+                                  <SelectItem value="father">أب</SelectItem>
+                                  <SelectItem value="mother">أم</SelectItem>
+                                  <SelectItem value="brother">أخ</SelectItem>
+                                  <SelectItem value="sister">أخت</SelectItem>
+                                  <SelectItem value="uncle">عم/خال</SelectItem>
+                                  <SelectItem value="other">أخرى</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )} />
                           <FormField control={form.control} name="address" render={({ field }) => (
                             <FormItem>
                               <FormLabel>العنوان (اختياري)</FormLabel>
@@ -367,6 +412,32 @@ export default function StudentRegistration() {
                               <FormMessage />
                             </FormItem>
                           )} />
+                          <FormField control={form.control} name="enrollmentDate" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>تاريخ الالتحاق</FormLabel>
+                              <FormControl>
+                                <Input type="date" data-testid="input-enrollment-date" {...field} value={field.value || ""} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )} />
+                          {selectedStudent && selectedStudent.status === "inactive" && (
+                            <FormField control={form.control} name="withdrawalReason" render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>سبب الانسحاب</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    placeholder="سبب انسحاب الطالب..."
+                                    data-testid="input-withdrawal-reason"
+                                    rows={3}
+                                    {...field}
+                                    value={field.value || ""}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )} />
+                          )}
                         </div>
                       )}
 
@@ -445,7 +516,10 @@ export default function StudentRegistration() {
             بطاقة الطالب
           </h3>
           {selectedStudent ? (
-            <StudentIDCard student={selectedStudent} />
+            <>
+              <StudentIDCard student={selectedStudent} />
+              <EnrollmentPanel studentId={selectedStudent.id} />
+            </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center py-8 gap-3">
               <div className="w-16 h-20 rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">

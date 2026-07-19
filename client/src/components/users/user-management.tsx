@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Shield, Plus, Trash2, Edit, Key, Save, Eye, EyeOff, UserCheck, UserX, Users } from "lucide-react";
+import { Shield, Plus, Trash2, Edit, Key, Save, Eye, EyeOff, UserCheck, UserX, Users, Lock } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { Switch } from "@/components/ui/switch";
 
 interface User {
   id: string;
@@ -34,6 +36,7 @@ function roleColor(role: string) { return ROLES.find(r => r.value === role)?.col
 
 export default function UserManagement() {
   const { toast } = useToast();
+  const { user: authUser } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [resetUser, setResetUser] = useState<User | null>(null);
@@ -259,6 +262,7 @@ export default function UserManagement() {
                           {user.name.slice(0, 1)}
                         </div>
                         <span className="font-medium text-sm">{user.name}</span>
+                        {user.status !== "active" && <Lock size={12} className="text-muted-foreground" title="حساب معطّل" />}
                       </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground font-mono">{user.email}</TableCell>
@@ -289,8 +293,12 @@ export default function UserManagement() {
                           <Key size={12} />
                         </Button>
                         <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
-                          onClick={() => updateMutation.mutate({ id: user.id, updates: { status: user.status === "active" ? "inactive" : "active" } })}
-                          title={user.status === "active" ? "تعطيل الحساب" : "تفعيل الحساب"}
+                          onClick={() => {
+                            if (authUser?.id === user.id) return;
+                            updateMutation.mutate({ id: user.id, updates: { status: user.status === "active" ? "inactive" : "active" } });
+                          }}
+                          title={authUser?.id === user.id ? "لا يمكن تعطيل حسابك الخاص" : (user.status === "active" ? "تعطيل الحساب" : "تفعيل الحساب")}
+                          disabled={authUser?.id === user.id}
                           data-testid={`button-toggle-user-${user.id}`}>
                           {user.status === "active" ? <UserX size={12} className="text-orange-500" /> : <UserCheck size={12} className="text-emerald-500" />}
                         </Button>
