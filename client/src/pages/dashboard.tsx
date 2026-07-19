@@ -59,8 +59,9 @@ const sectionMeta: Record<ActiveSection, { title: string; titleAr: string; descr
   "reports":              { title: "Reports",    titleAr: "التقارير",            description: "تقارير الحضور والدرجات" },
   "whatsapp-management":  { title: "WhatsApp",   titleAr: "واتساب",             description: "إرسال الإشعارات عبر واتساب" },
   "settings":             { title: "Settings",   titleAr: "الإعدادات",          description: "إعدادات النظام والمنصة" },
-  "teachers":             { title: "Teachers",   titleAr: "المدرسين",            description: "إدارة المدرسين والمرتبات" },
+  "teachers":             { title: "Teachers",    titleAr: "المدرسين",            description: "إدارة المدرسين والمرتبات" },
   "reception":            { title: "Reception",  titleAr: "الاستقبال",          description: "بحث سريع وتسجيل حضور يومي" },
+  "user-management":      { title: "Users",      titleAr: "إدارة المستخدمين",   description: "حسابات الموظفين وصلاحيات الوصول" },
 };
 
 export default function Dashboard({ initialSection = "overview", ...props }: DashboardProps) {

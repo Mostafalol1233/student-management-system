@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertStudentSchema, type Student, type InsertStudent } from "@shared/schema";
+import { insertStudentSchema, type Student, type InsertStudent, type Group } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/hooks/use-settings";
@@ -141,10 +141,11 @@ export default function StudentRegistration() {
   const { toast } = useToast();
 
   const { data: students = [], isLoading } = useQuery<Student[]>({ queryKey: ["/api/students"] });
+  const { data: groups = [] } = useQuery<Group[]>({ queryKey: ["/api/groups"] });
 
   const form = useForm<InsertStudent>({
     resolver: zodResolver(insertStudentSchema),
-    defaultValues: { name: "", guardianPhone: "", guardianPhone2: undefined, address: undefined, gradeLevel: "", section: "" },
+    defaultValues: { name: "", guardianPhone: "", guardianPhone2: undefined, address: undefined, gradeLevel: "", section: "", groupId: undefined },
   });
 
   const createMutation = useMutation({
@@ -304,6 +305,27 @@ export default function StudentRegistration() {
                           </FormItem>
                         )} />
                       </div>
+
+                      {/* Row 4: Group */}
+                      <FormField control={form.control} name="groupId" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>المجموعة (اختياري)</FormLabel>
+                          <Select onValueChange={v => field.onChange(v === "none" ? undefined : v)} value={field.value || "none"}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-group">
+                                <SelectValue placeholder="اختر مجموعة..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">— بدون مجموعة —</SelectItem>
+                              {groups.map(g => (
+                                <SelectItem key={g.id} value={g.id}>{g.name} ({g.gradeLevel})</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
 
                       {/* Optional fields toggle */}
                       <button

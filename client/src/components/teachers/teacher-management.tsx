@@ -28,20 +28,37 @@ interface SalaryReport {
   expectedSalary: number;
   paid: number;
   remaining: number;
+  period: string | null;
 }
+
+const MONTHS = [
+  { value: "1",  label: "يناير"   }, { value: "2",  label: "فبراير"  },
+  { value: "3",  label: "مارس"    }, { value: "4",  label: "أبريل"   },
+  { value: "5",  label: "مايو"    }, { value: "6",  label: "يونيو"   },
+  { value: "7",  label: "يوليو"   }, { value: "8",  label: "أغسطس"  },
+  { value: "9",  label: "سبتمبر" }, { value: "10", label: "أكتوبر"  },
+  { value: "11", label: "نوفمبر"  }, { value: "12", label: "ديسمبر"  },
+];
 
 function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose: () => void }) {
   const { toast } = useToast();
   const [payAmount, setPayAmount] = useState("");
   const [payNotes, setPayNotes] = useState("");
   const [showPayForm, setShowPayForm] = useState(false);
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
+  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
+
+  const currentYear = now.getFullYear();
+  const years = Array.from({ length: 4 }, (_, i) => String(currentYear - i));
 
   const { data: report, isLoading, refetch } = useQuery<SalaryReport>({
-    queryKey: ["/api/teachers", teacher.id, "salary-report"],
+    queryKey: ["/api/teachers", teacher.id, "salary-report", selectedMonth, selectedYear],
     queryFn: async () => {
-      const r = await fetch(`/api/teachers/${teacher.id}/salary-report`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
+      const r = await fetch(
+        `/api/teachers/${teacher.id}/salary-report?month=${selectedMonth}&year=${selectedYear}`,
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+      );
       return r.json();
     },
   });
@@ -53,8 +70,8 @@ function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/teachers", teacher.id, "salary-report"] });
       setPayAmount(""); setPayNotes(""); setShowPayForm(false);
-      refetch();
-      toast({ title: `✅ تم صرف المرتب لـ ${teacher.name}` });
+      refetch(); // refetch with current month/year filters
+      toast({ title: `✅ تم صرف المرتب لـ ${teacher.name} — ${monthLabel} ${selectedYear}` });
     },
     onError: (e: any) => toast({ title: "فشل صرف المرتب", description: e.message, variant: "destructive" }),
   });
@@ -70,6 +87,8 @@ function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose
 
   const parsedPay = parseFloat(payAmount) || 0;
 
+  const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label ?? "";
+
   return (
     <div className="space-y-4">
       {/* Teacher header */}
@@ -81,6 +100,30 @@ function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose
           <div className="font-semibold">{teacher.name}</div>
           <div className="text-xs text-muted-foreground">{teacher.subject} · {salaryTypeLabel}</div>
         </div>
+      </div>
+
+      {/* Period selector */}
+      <div className="rounded-xl border bg-muted/20 p-3 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-semibold text-muted-foreground">الفترة:</span>
+        <div className="flex gap-2 flex-1">
+          <select
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="flex-1 h-8 px-2 text-xs border rounded-md bg-background"
+          >
+            {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+          <select
+            value={selectedYear}
+            onChange={e => setSelectedYear(e.target.value)}
+            className="w-24 h-8 px-2 text-xs border rounded-md bg-background"
+          >
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        {report && (
+          <span className="text-xs text-primary font-medium">{monthLabel} {selectedYear}</span>
+        )}
       </div>
 
       {/* Stats grid */}

@@ -7,17 +7,30 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Video, Check, X, Users, UserCheck, AlertCircle, Clock, Undo2 } from "lucide-react";
+import { Camera, Video, Check, X, UserCheck, AlertCircle, Clock, Undo2 } from "lucide-react";
 import type { Session, Student, Attendance, InsertAttendance } from "@shared/schema";
 
 declare global { interface Window { Html5Qrcode: any; } }
+
+const ATTENDANCE_STATUSES = [
+  { value: "present",  label: "حاضر",    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", dot: "bg-emerald-500" },
+  { value: "late",     label: "متأخر",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",       dot: "bg-amber-500"   },
+  { value: "excused",  label: "بعذر",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",           dot: "bg-blue-500"    },
+  { value: "sick",     label: "مريض",    color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",   dot: "bg-purple-500"  },
+  { value: "absent",   label: "غائب",    color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",               dot: "bg-red-500"     },
+];
+
+function statusInfo(status: string) {
+  return ATTENDANCE_STATUSES.find(s => s.value === status) ?? ATTENDANCE_STATUSES[0];
+}
 
 export default function AttendanceScanner() {
   const [manualCode, setManualCode] = useState("");
   const [manualCodeError, setManualCodeError] = useState("");
   const [manualCodeOk, setManualCodeOk] = useState("");
+  const [manualStatus, setManualStatus] = useState("present");
   const [isScanning, setIsScanning] = useState(false);
-  const [recentScans, setRecentScans] = useState<Array<{ student: Student; time: Date }>>([]);
+  const [recentScans, setRecentScans] = useState<Array<{ student: Student; time: Date; status: string }>>([]);
   const qrScannerRef = useRef<any>(null);
   const { toast } = useToast();
 
@@ -34,8 +47,9 @@ export default function AttendanceScanner() {
     onSuccess: (att: Attendance) => {
       queryClient.invalidateQueries({ queryKey: ["/api/attendance/session", activeSession?.id] });
       const student = students.find(s => s.id === att.studentId);
-      if (student) setRecentScans(prev => [{ student, time: new Date() }, ...prev.slice(0, 9)]);
-      toast({ title: "✅ تم تسجيل الحضور", description: student?.name });
+      if (student) setRecentScans(prev => [{ student, time: new Date(), status: att.status }, ...prev.slice(0, 9)]);
+      const info = statusInfo(att.status);
+      toast({ title: `${info.label === "حاضر" ? "✅" : "📋"} تم تسجيل ${info.label}`, description: student?.name });
     },
     onError: (e: any) => toast({ title: "فشل تسجيل الحضور", description: e.message, variant: "destructive" }),
   });
@@ -48,7 +62,7 @@ export default function AttendanceScanner() {
         const rec = sessionAttendance.find(a => a.id === id);
         return !rec || s.student.id !== rec.studentId;
       }));
-      toast({ title: "↩️ تم إلغاء تسجيل الحضور" });
+      toast({ title: "↩️ تم إلغاء التسجيل" });
     },
     onError: (e: any) => toast({ title: "فشل الإلغاء", description: e.message, variant: "destructive" }),
   });
@@ -72,7 +86,7 @@ export default function AttendanceScanner() {
       await qrScannerRef.current.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 220, height: 220 } },
-        (decoded: string) => handleCodeScan(decoded, "qr"),
+        (decoded: string) => handleCodeScan(decoded, "qr", "present"),
         () => {}
       );
       setIsScanning(true);
@@ -88,7 +102,7 @@ export default function AttendanceScanner() {
     }
   };
 
-  const handleCodeScan = (code: string, method: "qr" | "manual") => {
+  const handleCodeScan = (code: string, method: "qr" | "manual", status: string) => {
     if (!activeSession) {
       toast({ title: "لا توجد حصة نشطة", description: "يرجى بدء حصة أولاً", variant: "destructive" });
       return;
@@ -98,13 +112,23 @@ export default function AttendanceScanner() {
       if (method === "manual") setManualCodeError("لا يوجد طالب بهذا الكود");
       return;
     }
-    const alreadyPresent = sessionAttendance.some(a => a.studentId === student.id);
-    if (alreadyPresent) {
+    const alreadyRecorded = sessionAttendance.some(a => a.studentId === student.id);
+    if (alreadyRecorded) {
       if (method === "manual") setManualCodeError(`${student.name} سبق تسجيل حضوره`);
       return;
     }
-    recordMutation.mutate({ studentId: student.id, sessionId: activeSession.id, status: "present", scanMethod: method });
+    recordMutation.mutate({ studentId: student.id, sessionId: activeSession.id, status, scanMethod: method });
     if (method === "manual") { setManualCode(""); setManualCodeError(""); setManualCodeOk(""); }
+  };
+
+  const markStudentStatus = (student: Student, status: string) => {
+    if (!activeSession) return;
+    const alreadyRecorded = sessionAttendance.some(a => a.studentId === student.id);
+    if (alreadyRecorded) {
+      toast({ title: `${student.name} سبق تسجيله`, variant: "destructive" });
+      return;
+    }
+    recordMutation.mutate({ studentId: student.id, sessionId: activeSession.id, status, scanMethod: "manual" });
   };
 
   const validateCode = (code: string) => {
@@ -115,18 +139,24 @@ export default function AttendanceScanner() {
       else if (sessionAttendance.some(a => a.studentId === student.id)) {
         setManualCodeError(`${student.name} سبق تسجيل حضوره`);
       } else {
-        setManualCodeOk(`جاهز لتسجيل حضور: ${student.name}`);
+        setManualCodeOk(`جاهز لتسجيل: ${student.name}`);
       }
     }
   };
 
-  const presentCount = sessionAttendance.length;
+  const presentCount = sessionAttendance.filter(a => a.status === "present").length;
+  const lateCount = sessionAttendance.filter(a => a.status === "late").length;
+  const absentCount = sessionAttendance.filter(a => a.status === "absent").length;
+  const excusedCount = sessionAttendance.filter(a => a.status === "excused" || a.status === "sick").length;
+  const totalRecorded = sessionAttendance.length;
   const totalStudents = students.length;
-  const absentCount = totalStudents - presentCount;
+  const unrecordedCount = totalStudents - totalRecorded;
   const attendancePct = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
 
-  const presentStudents = students.filter(s => sessionAttendance.some(a => a.studentId === s.id));
-  const absentStudents = students.filter(s => !sessionAttendance.some(a => a.studentId === s.id));
+  const recordedStudents = students.filter(s => sessionAttendance.some(a => a.studentId === s.id));
+  const unrecordedStudents = students.filter(s => !sessionAttendance.some(a => a.studentId === s.id));
+
+  const selectedStatusInfo = statusInfo(manualStatus);
 
   if (!activeSession) {
     return (
@@ -156,13 +186,28 @@ export default function AttendanceScanner() {
             <p className="text-sm text-white/70 mt-0.5">📅 {activeSession.date} · ⏰ {activeSession.time} · ⏱️ {activeSession.duration} دقيقة</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold" data-testid="text-present-count">{presentCount}/{totalStudents}</div>
-            <div className="text-sm text-white/70">حضور {attendancePct}%</div>
+            <div className="text-3xl font-bold" data-testid="text-present-count">{totalRecorded}/{totalStudents}</div>
+            <div className="text-sm text-white/70">مُسجَّل {attendancePct}% حضور فعلي</div>
           </div>
         </div>
         <div className="mt-3 h-2 bg-white/20 rounded-full overflow-hidden">
           <div className="h-full bg-white rounded-full transition-all duration-700" style={{ width: `${attendancePct}%` }} />
         </div>
+      </div>
+
+      {/* Status summary pills */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { label: "حاضر",  count: presentCount,  color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+          { label: "متأخر", count: lateCount,      color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"       },
+          { label: "بعذر/مريض", count: excusedCount, color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"         },
+          { label: "غائب رسمي", count: absentCount, color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"              },
+          { label: "لم يُسجَّل", count: unrecordedCount, color: "bg-muted text-muted-foreground"                                       },
+        ].map(s => (
+          <div key={s.label} className={`text-xs px-3 py-1 rounded-full font-medium ${s.color}`}>
+            {s.label}: {s.count}
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -174,6 +219,7 @@ export default function AttendanceScanner() {
               <div className="flex items-center gap-2">
                 <Camera size={16} className="text-muted-foreground" />
                 <h3 className="font-semibold">مسح رمز QR</h3>
+                <span className="text-xs text-muted-foreground">(يسجّل حاضر تلقائياً)</span>
               </div>
               {isScanning && (
                 <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-xs">
@@ -217,6 +263,23 @@ export default function AttendanceScanner() {
               <h3 className="font-semibold">إدخال الكود يدوياً</h3>
             </div>
             <CardContent className="p-5">
+              {/* Status selector */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className="text-xs text-muted-foreground self-center">الحالة:</span>
+                {ATTENDANCE_STATUSES.map(s => (
+                  <button
+                    key={s.value}
+                    onClick={() => setManualStatus(s.value)}
+                    className={`text-xs px-3 py-1.5 rounded-full font-medium border-2 transition-all ${
+                      manualStatus === s.value
+                        ? `${s.color} border-current`
+                        : "bg-muted/50 text-muted-foreground border-transparent hover:border-muted"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
               <div className="flex gap-3">
                 <div className="flex-1">
                   <Input
@@ -227,7 +290,7 @@ export default function AttendanceScanner() {
                       setManualCode(v);
                       validateCode(v);
                     }}
-                    onKeyDown={e => { if (e.key === "Enter" && manualCode.length === 3 && !manualCodeError) handleCodeScan(manualCode, "manual"); }}
+                    onKeyDown={e => { if (e.key === "Enter" && manualCode.length === 3 && !manualCodeError) handleCodeScan(manualCode, "manual", manualStatus); }}
                     maxLength={3}
                     className={`font-mono text-center text-xl h-12 border-2 transition-colors ${
                       manualCodeError ? "border-red-400 focus:border-red-400" :
@@ -244,10 +307,10 @@ export default function AttendanceScanner() {
                     ))}
                   </div>
                   {manualCodeError && <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1"><AlertCircle size={12} />{manualCodeError}</p>}
-                  {manualCodeOk && !manualCodeError && <p className="text-xs text-emerald-600 mt-1.5 flex items-center gap-1"><Check size={12} />{manualCodeOk}</p>}
+                  {manualCodeOk && !manualCodeError && <p className="text-xs text-emerald-600 mt-1.5 flex items-center gap-1"><Check size={12} />{manualCodeOk} — <span className={`font-medium text-xs px-1.5 py-0.5 rounded-full ${selectedStatusInfo.color}`}>{selectedStatusInfo.label}</span></p>}
                 </div>
                 <Button
-                  onClick={() => handleCodeScan(manualCode, "manual")}
+                  onClick={() => handleCodeScan(manualCode, "manual", manualStatus)}
                   disabled={manualCode.length !== 3 || !!manualCodeError || recordMutation.isPending}
                   className="h-12 px-6"
                   data-testid="button-mark-present"
@@ -259,13 +322,13 @@ export default function AttendanceScanner() {
             </CardContent>
           </Card>
 
-          {/* Present students with undo */}
-          {presentStudents.length > 0 && (
+          {/* Recorded students with undo */}
+          {recordedStudents.length > 0 && (
             <Card>
               <div className="px-5 py-4 border-b flex items-center gap-2">
                 <Check size={16} className="text-emerald-600" />
-                <h3 className="font-semibold">الحاضرون</h3>
-                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">{presentStudents.length}</Badge>
+                <h3 className="font-semibold">المسجَّلون</h3>
+                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">{recordedStudents.length}</Badge>
               </div>
               <CardContent className="p-0">
                 <Table>
@@ -273,24 +336,29 @@ export default function AttendanceScanner() {
                     <TableRow className="bg-muted/50">
                       <TableHead className="text-xs">الطالب</TableHead>
                       <TableHead className="text-xs">الكود</TableHead>
+                      <TableHead className="text-xs">الحالة</TableHead>
                       <TableHead className="text-xs">طريقة التسجيل</TableHead>
                       <TableHead className="text-xs">إلغاء</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {presentStudents.map(student => {
+                    {recordedStudents.map(student => {
                       const record = sessionAttendance.find(a => a.studentId === student.id);
+                      const info = statusInfo(record?.status ?? "present");
                       return (
                         <TableRow key={student.id} className="hover:bg-muted/20" data-testid={`present-row-${student.id}`}>
                           <TableCell className="font-medium text-sm">{student.name}</TableCell>
                           <TableCell><Badge variant="outline" className="font-mono text-xs">{student.code}</Badge></TableCell>
+                          <TableCell>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${info.color}`}>{info.label}</span>
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {record?.scanMethod === "qr" ? "📷 QR" : "⌨️ يدوي"}
                           </TableCell>
                           <TableCell>
                             <Button size="sm" variant="ghost"
                               className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
-                              onClick={() => { if (record && confirm(`إلغاء تسجيل حضور "${student.name}"؟`)) undoMutation.mutate(record.id); }}
+                              onClick={() => { if (record && confirm(`إلغاء تسجيل "${student.name}"؟`)) undoMutation.mutate(record.id); }}
                               disabled={undoMutation.isPending}
                               data-testid={`button-undo-${student.id}`}>
                               <Undo2 size={11} className="mr-1" />إلغاء
@@ -315,8 +383,16 @@ export default function AttendanceScanner() {
               <div className="text-xs text-muted-foreground">حاضر</div>
             </div>
             <div className="stat-card flex-col text-center">
-              <div className="text-2xl font-bold text-red-500">{absentCount}</div>
-              <div className="text-xs text-muted-foreground">غائب</div>
+              <div className="text-2xl font-bold text-amber-500">{lateCount}</div>
+              <div className="text-xs text-muted-foreground">متأخر</div>
+            </div>
+            <div className="stat-card flex-col text-center">
+              <div className="text-2xl font-bold text-blue-500">{excusedCount}</div>
+              <div className="text-xs text-muted-foreground">بعذر/مريض</div>
+            </div>
+            <div className="stat-card flex-col text-center">
+              <div className="text-2xl font-bold text-red-500">{unrecordedCount}</div>
+              <div className="text-xs text-muted-foreground">لم يُسجَّل</div>
             </div>
           </div>
 
@@ -331,19 +407,23 @@ export default function AttendanceScanner() {
                 <div className="p-4 text-center text-xs text-muted-foreground">لا توجد عمليات بعد</div>
               ) : (
                 <div className="divide-y">
-                  {recentScans.map((scan, i) => (
-                    <div key={i} className="px-4 py-2.5 flex items-center gap-2" data-testid={`recent-scan-${i}`}>
-                      <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
-                        <Check size={12} className="text-emerald-600" />
+                  {recentScans.map((scan, i) => {
+                    const info = statusInfo(scan.status);
+                    return (
+                      <div key={i} className="px-4 py-2.5 flex items-center gap-2" data-testid={`recent-scan-${i}`}>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${info.color}`}>
+                          <span className={`w-2 h-2 rounded-full ${info.dot}`}></span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm truncate">{scan.student.name}</div>
+                          <div className={`text-xs ${info.color} inline-block px-1.5 rounded-sm`}>{info.label}</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {scan.time.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm truncate">{scan.student.name}</div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {scan.time.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -351,13 +431,14 @@ export default function AttendanceScanner() {
         </div>
       </div>
 
-      {/* Absent Students */}
-      {absentStudents.length > 0 && (
+      {/* Unrecorded Students */}
+      {unrecordedStudents.length > 0 && (
         <Card>
           <div className="px-5 py-4 border-b flex items-center gap-2">
-            <AlertCircle size={16} className="text-red-500" />
-            <h3 className="font-semibold">الغائبون</h3>
-            <Badge variant="destructive" className="text-xs">{absentStudents.length}</Badge>
+            <AlertCircle size={16} className="text-amber-500" />
+            <h3 className="font-semibold">لم يُسجَّلوا بعد</h3>
+            <Badge variant="secondary" className="text-xs">{unrecordedStudents.length}</Badge>
+            <span className="text-xs text-muted-foreground mr-2">اختر الحالة المناسبة لكل طالب</span>
           </div>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -367,22 +448,48 @@ export default function AttendanceScanner() {
                     <TableHead>الطالب</TableHead>
                     <TableHead>الكود</TableHead>
                     <TableHead>الصف</TableHead>
-                    <TableHead>إجراء</TableHead>
+                    <TableHead>تسجيل الحالة</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {absentStudents.map(student => (
+                  {unrecordedStudents.map(student => (
                     <TableRow key={student.id} className="hover:bg-muted/30">
                       <TableCell className="font-medium text-sm">{student.name}</TableCell>
                       <TableCell><Badge variant="outline" className="font-mono text-xs">{student.code}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground">{student.gradeLevel} - {student.section}</TableCell>
                       <TableCell>
-                        <Button size="sm" variant="outline"
-                          onClick={() => handleCodeScan(student.code, "manual")}
-                          disabled={recordMutation.isPending}
-                          className="h-7 text-xs">
-                          <Check size={11} className="mr-1" />تسجيل حضور
-                        </Button>
+                        <div className="flex flex-wrap gap-1">
+                          <Button size="sm" variant="outline"
+                            onClick={() => markStudentStatus(student, "present")}
+                            disabled={recordMutation.isPending}
+                            className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                            <Check size={11} className="mr-1" />حاضر
+                          </Button>
+                          <Button size="sm" variant="outline"
+                            onClick={() => markStudentStatus(student, "late")}
+                            disabled={recordMutation.isPending}
+                            className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50">
+                            متأخر
+                          </Button>
+                          <Button size="sm" variant="outline"
+                            onClick={() => markStudentStatus(student, "excused")}
+                            disabled={recordMutation.isPending}
+                            className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-50">
+                            بعذر
+                          </Button>
+                          <Button size="sm" variant="outline"
+                            onClick={() => markStudentStatus(student, "sick")}
+                            disabled={recordMutation.isPending}
+                            className="h-7 text-xs border-purple-300 text-purple-700 hover:bg-purple-50">
+                            مريض
+                          </Button>
+                          <Button size="sm" variant="outline"
+                            onClick={() => markStudentStatus(student, "absent")}
+                            disabled={recordMutation.isPending}
+                            className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50">
+                            غائب
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

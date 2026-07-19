@@ -2,7 +2,7 @@ import { useRef } from "react";
 import {
   GraduationCap, UserPlus, CalendarPlus, QrCode, Star, BarChart3,
   MessageCircle, LayoutDashboard, Moon, Sun, Users, BookOpen,
-  DollarSign, TrendingUp, Calendar, ClipboardList, Settings, UserCog, ConciergeBell, X, LogOut,
+  DollarSign, TrendingUp, Calendar, ClipboardList, Settings, UserCog, ConciergeBell, X, LogOut, Shield,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useSettings } from "@/hooks/use-settings";
@@ -61,11 +61,12 @@ const menuGroups: MenuGroup[] = [
   {
     label: "الإدارة",
     items: [
-      { id: "finance-management",  icon: DollarSign,    label: "النظام المالي", labelEn: "Finance"   },
-      { id: "analytics",           icon: TrendingUp,    label: "التحليلات",     labelEn: "Analytics" },
-      { id: "reports",             icon: BarChart3,     label: "التقارير",      labelEn: "Reports"   },
-      { id: "whatsapp-management", icon: MessageCircle, label: "واتساب",        labelEn: "WhatsApp"  },
-      { id: "settings",            icon: Settings,      label: "الإعدادات",     labelEn: "Settings"  },
+      { id: "finance-management",  icon: DollarSign,    label: "النظام المالي",     labelEn: "Finance"   },
+      { id: "analytics",           icon: TrendingUp,    label: "التحليلات",          labelEn: "Analytics" },
+      { id: "reports",             icon: BarChart3,     label: "التقارير",           labelEn: "Reports"   },
+      { id: "whatsapp-management", icon: MessageCircle, label: "واتساب",             labelEn: "WhatsApp"  },
+      { id: "user-management",     icon: Shield,        label: "المستخدمون",         labelEn: "Users"     },
+      { id: "settings",            icon: Settings,      label: "الإعدادات",          labelEn: "Settings"  },
     ],
   },
 ];
@@ -78,6 +79,7 @@ const paths: Record<ActiveSection, string> = {
   "finance-management": "/finance", "analytics": "/analytics",
   "reports": "/reports", "whatsapp-management": "/whatsapp",
   "settings": "/settings", "teachers": "/teachers", "reception": "/reception",
+  "user-management": "/users",
 };
 
 export default function Sidebar({ activeSection, onSectionChange, darkMode, onToggleDark, mobileOpen, onMobileClose }: SidebarProps) {
