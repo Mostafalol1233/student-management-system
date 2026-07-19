@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,10 +9,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { CalendarPlus, Play, StopCircle, CheckCircle2, Calendar, XCircle, Clock, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CalendarPlus, Play, StopCircle, CheckCircle2, Calendar, XCircle, Clock, Users, Edit, Trash2, Save } from "lucide-react";
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: any }> = {
   scheduled: { label: "مجدولة",  cls: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400",     icon: Calendar },
@@ -22,6 +25,9 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: any }> =
 
 export default function SessionManagement() {
   const { toast } = useToast();
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Session>>({});
 
   const { data: sessions = [], isLoading } = useQuery<Session[]>({ queryKey: ["/api/sessions"] });
   const { data: activeSession } = useQuery<Session | null>({ queryKey: ["/api/sessions/active"] });
@@ -41,7 +47,7 @@ export default function SessionManagement() {
     onSuccess: (s: Session) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       form.reset({ name: "", date: new Date().toISOString().split("T")[0], time: new Date().toTimeString().slice(0, 5), duration: 60 });
-      toast({ title: `تم إنشاء الحصة: ${s.name}` });
+      toast({ title: `✅ تم إنشاء الحصة: ${s.name}` });
     },
     onError: (e: any) => toast({ title: "فشل الإنشاء", description: e.message, variant: "destructive" }),
   });
@@ -52,16 +58,40 @@ export default function SessionManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions/active"] });
-      toast({ title: "تم تحديث الحصة" });
+      setEditOpen(false);
+      setEditingSession(null);
+      toast({ title: "✅ تم تحديث الحصة" });
     },
+    onError: (e: any) => toast({ title: "فشل التحديث", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/sessions/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions/active"] });
+      toast({ title: "✅ تم حذف الحصة" });
+    },
+    onError: (e: any) => toast({ title: "فشل الحذف", description: e.message, variant: "destructive" }),
   });
 
   const setStatus = (session: Session, status: string) => {
-    // If activating a session, deactivate others first
     if (status === "active" && activeSession && activeSession.id !== session.id) {
       updateMutation.mutate({ id: activeSession.id, updates: { status: "completed" } });
     }
     updateMutation.mutate({ id: session.id, updates: { status } });
+  };
+
+  const openEdit = (s: Session) => {
+    setEditingSession(s);
+    setEditForm({ ...s });
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingSession) return;
+    const { name, date, time, duration, groupId, teacherId } = editForm as any;
+    updateMutation.mutate({ id: editingSession.id, updates: { name, date, time, duration: Number(duration), groupId: groupId || null, teacherId: teacherId || null } });
   };
 
   const formatDuration = (min: number) => min >= 60 ? `${Math.floor(min / 60)}س ${min % 60 > 0 ? `${min % 60}د` : ""}` : `${min}د`;
@@ -76,6 +106,63 @@ export default function SessionManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={o => { setEditOpen(o); if (!o) setEditingSession(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>تعديل الحصة</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">اسم الحصة *</Label>
+              <Input className="h-8 text-sm" value={editForm.name || ""}
+                onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="مثال: رياضيات — الصف الثالث" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">التاريخ *</Label>
+                <Input type="date" className="h-8 text-sm" value={editForm.date || ""}
+                  onChange={e => setEditForm(p => ({ ...p, date: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">الوقت *</Label>
+                <Input type="time" className="h-8 text-sm" value={editForm.time || ""}
+                  onChange={e => setEditForm(p => ({ ...p, time: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">المدة (دقيقة)</Label>
+              <Input type="number" min="15" max="300" className="h-8 text-sm" value={editForm.duration ?? 60}
+                onChange={e => setEditForm(p => ({ ...p, duration: parseInt(e.target.value) || 60 }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">المجموعة</Label>
+              <Select value={editForm.groupId || ""} onValueChange={v => setEditForm(p => ({ ...p, groupId: v || null }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="اختر مجموعة (اختياري)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— بدون مجموعة —</SelectItem>
+                  {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">المدرس</Label>
+              <Select value={editForm.teacherId || ""} onValueChange={v => setEditForm(p => ({ ...p, teacherId: v || null }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="اختر مدرساً (اختياري)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— بدون مدرس —</SelectItem>
+                  {teachers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full" onClick={handleSaveEdit}
+              disabled={updateMutation.isPending || !editForm.name || !editForm.date || !editForm.time}>
+              <Save size={14} className="mr-2" />
+              {updateMutation.isPending ? "جاري الحفظ..." : "حفظ التغييرات"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3">
         {stats.map(s => (
@@ -192,7 +279,7 @@ export default function SessionManagement() {
                       <TableHead className="text-xs">التاريخ والوقت</TableHead>
                       <TableHead className="text-xs">المدة</TableHead>
                       <TableHead className="text-xs">الحالة</TableHead>
-                      <TableHead className="text-xs text-left">إجراءات</TableHead>
+                      <TableHead className="text-xs">إجراءات</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -228,7 +315,7 @@ export default function SessionManagement() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            <div className="flex gap-1">
+                            <div className="flex gap-0.5 flex-wrap">
                               {session.status === "scheduled" && (
                                 <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                                   onClick={() => setStatus(session, "active")} data-testid={`button-start-session-${session.id}`}>
@@ -241,16 +328,35 @@ export default function SessionManagement() {
                                   <CheckCircle2 size={11} className="mr-1" />إنهاء
                                 </Button>
                               )}
-                              {(session.status === "scheduled" || session.status === "active") && (
-                                <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:text-red-600"
-                                  onClick={() => setStatus(session, "cancelled")} data-testid={`button-cancel-session-${session.id}`}>
-                                  <XCircle size={11} />
+                              {/* Edit — always available except completed */}
+                              {session.status !== "completed" && (
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700"
+                                  onClick={() => openEdit(session)} title="تعديل الحصة"
+                                  data-testid={`button-edit-session-${session.id}`}>
+                                  <Edit size={12} />
                                 </Button>
                               )}
+                              {/* Cancel (scheduled/active) */}
+                              {(session.status === "scheduled" || session.status === "active") && (
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600"
+                                  onClick={() => setStatus(session, "cancelled")} data-testid={`button-cancel-session-${session.id}`}>
+                                  <XCircle size={12} />
+                                </Button>
+                              )}
+                              {/* Reschedule cancelled → opens edit dialog with new date */}
                               {session.status === "cancelled" && (
-                                <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-500"
-                                  onClick={() => setStatus(session, "scheduled")}>
-                                  <Calendar size={11} className="mr-1" />إعادة
+                                <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-500 px-2"
+                                  onClick={() => openEdit(session)} title="إعادة جدولة"
+                                  data-testid={`button-reschedule-session-${session.id}`}>
+                                  <Calendar size={11} className="mr-1" />إعادة جدولة
+                                </Button>
+                              )}
+                              {/* Delete — cancelled or completed */}
+                              {(session.status === "cancelled" || session.status === "completed") && (
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => { if (confirm(`حذف الحصة "${session.name}"؟`)) deleteMutation.mutate(session.id); }}
+                                  data-testid={`button-delete-session-${session.id}`}>
+                                  <Trash2 size={12} />
                                 </Button>
                               )}
                             </div>

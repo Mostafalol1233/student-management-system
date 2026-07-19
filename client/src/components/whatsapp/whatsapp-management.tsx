@@ -11,7 +11,7 @@ import { MessageCircle, CheckCircle2, XCircle, Send, RefreshCw, Clock, AlertCirc
 import type { Student, Grade } from "@shared/schema";
 import AutomationEngine from "./automation-engine";
 
-interface WhatsAppStatus { isConnected: boolean; state: string; }
+interface WhatsAppStatus { isConnected: boolean; state: string; qrCode?: string | null; }
 interface WhatsAppMessage { id: string; to: string; message: string; status: "sent" | "failed" | "pending"; timestamp: string; }
 
 const gradeClass = (g: string | null) => {
@@ -135,14 +135,32 @@ export function WhatsAppManagement() {
           </div>
 
           {!isConnected && (
-            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">
-                <AlertCircle size={14} />
-                كيفية الاتصال
+            <div className="mt-4 space-y-3">
+              {/* QR Code display */}
+              {status?.qrCode && (
+                <div className="flex flex-col items-center gap-3 p-4 bg-white dark:bg-gray-900 border rounded-xl">
+                  <p className="text-sm font-medium text-center">امسح رمز QR بتطبيق واتساب على هاتفك</p>
+                  <img
+                    src={status.qrCode}
+                    alt="WhatsApp QR Code"
+                    className="w-48 h-48 rounded-lg border"
+                    data-testid="img-whatsapp-qr"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">واتساب → النقاط الثلاث → الأجهزة المرتبطة → ربط جهاز</p>
+                </div>
+              )}
+              {/* Instructions */}
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">
+                  <AlertCircle size={14} />
+                  {status?.qrCode ? "في انتظار المسح..." : "كيفية الاتصال"}
+                </div>
+                <p className="text-xs leading-relaxed text-amber-600 dark:text-amber-500">
+                  {status?.qrCode
+                    ? "امسح رمز QR أعلاه بكاميرا تطبيق واتساب. سيتم الاتصال تلقائياً بعد المسح."
+                    : "اضغط \"الاتصال بواتساب\" لإنشاء رمز QR، ثم امسحه بتطبيق واتساب على هاتفك. بعد الاتصال، يمكنك إرسال إشعارات الدرجات لأولياء الأمور تلقائياً."}
+                </p>
               </div>
-              <p className="text-xs leading-relaxed text-amber-600 dark:text-amber-500">
-                اضغط "الاتصال بواتساب" ثم امسح رمز QR الذي سيظهر باستخدام تطبيق واتساب على هاتفك. بعد الاتصال، يمكنك إرسال إشعارات الدرجات لأولياء الأمور تلقائياً.
-              </p>
             </div>
           )}
         </CardContent>

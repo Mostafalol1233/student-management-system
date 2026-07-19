@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Edit, Users, BookOpen, DollarSign, Search, TrendingUp, CheckCircle, Clock } from "lucide-react";
+import { Plus, Trash2, Edit, Users, BookOpen, DollarSign, Search, TrendingUp, CheckCircle, Clock, Banknote } from "lucide-react";
 
 const SALARY_TYPES = [
   { value: "fixed",       label: "مرتب ثابت",           hint: "مبلغ ثابت كل شهر" },
@@ -31,12 +31,32 @@ interface SalaryReport {
 }
 
 function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose: () => void }) {
-  const { data: report, isLoading } = useQuery<SalaryReport>({
+  const { toast } = useToast();
+  const [payAmount, setPayAmount] = useState("");
+  const [payNotes, setPayNotes] = useState("");
+  const [showPayForm, setShowPayForm] = useState(false);
+
+  const { data: report, isLoading, refetch } = useQuery<SalaryReport>({
     queryKey: ["/api/teachers", teacher.id, "salary-report"],
     queryFn: async () => {
-      const r = await fetch(`/api/teachers/${teacher.id}/salary-report`);
+      const r = await fetch(`/api/teachers/${teacher.id}/salary-report`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
       return r.json();
     },
+  });
+
+  const payMutation = useMutation({
+    mutationFn: async ({ amount, notes }: { amount: number; notes: string }) =>
+      (await apiRequest("POST", `/api/teachers/${teacher.id}/salary-payment`, { amount, notes })).json(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teachers", teacher.id, "salary-report"] });
+      setPayAmount(""); setPayNotes(""); setShowPayForm(false);
+      refetch();
+      toast({ title: `✅ تم صرف المرتب لـ ${teacher.name}` });
+    },
+    onError: (e: any) => toast({ title: "فشل صرف المرتب", description: e.message, variant: "destructive" }),
   });
 
   if (isLoading) return <div className="p-8 text-center text-sm text-muted-foreground">جاري الحساب...</div>;
@@ -48,8 +68,11 @@ function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose
     teacher.salaryType === "per_student" ? `${teacher.salaryAmount || 0} ج × ${report.studentCount} طالب` :
     `${teacher.salaryAmount || 0}% × ${report.teacherRevenue.toLocaleString()} ج إيرادات`;
 
+  const parsedPay = parseFloat(payAmount) || 0;
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {/* Teacher header */}
       <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50">
         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
           <span className="text-primary font-bold">{teacher.name.slice(0, 1)}</span>
@@ -60,12 +83,13 @@ function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose
         </div>
       </div>
 
+      {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "عدد الطلاب النشطين",  value: `${report.studentCount} طالب`,       icon: Users,       cls: "text-blue-600" },
-          { label: "إيرادات طلابه",        value: `${report.teacherRevenue.toLocaleString()} ج`, icon: TrendingUp, cls: "text-emerald-600" },
-          { label: "المرتب المستحق",        value: `${report.expectedSalary.toLocaleString()} ج`, icon: DollarSign, cls: "text-primary" },
-          { label: "المتبقي للصرف",         value: `${report.remaining.toLocaleString()} ج`,      icon: Clock,      cls: report.remaining > 0 ? "text-amber-600" : "text-emerald-600" },
+          { label: "عدد الطلاب النشطين",  value: `${report.studentCount} طالب`,                        icon: Users,       cls: "text-blue-600" },
+          { label: "إيرادات طلابه",        value: `${report.teacherRevenue.toLocaleString()} ج`,         icon: TrendingUp,  cls: "text-emerald-600" },
+          { label: "المرتب المستحق",        value: `${report.expectedSalary.toLocaleString()} ج`,         icon: DollarSign,  cls: "text-primary" },
+          { label: "المتبقي للصرف",         value: `${report.remaining.toLocaleString()} ج`,              icon: Clock,       cls: report.remaining > 0 ? "text-amber-600" : "text-emerald-600" },
         ].map(s => (
           <div key={s.label} className="rounded-xl border bg-card p-3 flex items-center gap-2.5">
             <s.icon size={14} className={s.cls} />
@@ -77,12 +101,14 @@ function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose
         ))}
       </div>
 
+      {/* Formula */}
       <div className="rounded-xl border bg-muted/30 p-4 space-y-1.5">
         <div className="text-xs font-semibold text-muted-foreground">حساب المرتب</div>
         <div className="text-sm font-mono">{formulaDesc}</div>
         <div className="text-lg font-bold text-primary">{report.expectedSalary.toLocaleString()} ج</div>
       </div>
 
+      {/* Status banner */}
       {report.remaining > 0 ? (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200">
           <Clock size={13} className="text-amber-600" />
@@ -91,8 +117,44 @@ function SalarySettlementPanel({ teacher, onClose }: { teacher: Teacher; onClose
       ) : (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200">
           <CheckCircle size={13} className="text-emerald-600" />
-          <span className="text-xs text-emerald-700 dark:text-emerald-400">تم صرف المرتب بالكامل</span>
+          <span className="text-xs text-emerald-700 dark:text-emerald-400">تم صرف المرتب بالكامل لهذا الشهر</span>
         </div>
+      )}
+
+      {/* Pay form */}
+      {showPayForm ? (
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <div className="text-sm font-semibold">تسجيل دفعة مرتب</div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">المبلغ (ج) *</label>
+            <input
+              type="number" min="1" placeholder={`${report.remaining > 0 ? report.remaining : report.expectedSalary}`}
+              value={payAmount} onChange={e => setPayAmount(e.target.value)}
+              className="w-full h-8 px-3 text-sm border rounded-md bg-background font-mono"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">ملاحظات (اختياري)</label>
+            <input
+              type="text" placeholder="مثال: مرتب شهر يوليو"
+              value={payNotes} onChange={e => setPayNotes(e.target.value)}
+              className="w-full h-8 px-3 text-sm border rounded-md bg-background"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button className="flex-1" disabled={parsedPay <= 0 || payMutation.isPending}
+              onClick={() => payMutation.mutate({ amount: parsedPay, notes: payNotes })}>
+              <Banknote size={14} className="mr-2" />
+              {payMutation.isPending ? "جاري الصرف..." : `صرف ${parsedPay > 0 ? parsedPay.toLocaleString() + " ج" : ""}`}
+            </Button>
+            <Button variant="outline" onClick={() => setShowPayForm(false)}>إلغاء</Button>
+          </div>
+        </div>
+      ) : (
+        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+          onClick={() => { setPayAmount(String(report.remaining > 0 ? report.remaining : report.expectedSalary)); setShowPayForm(true); }}>
+          <Banknote size={14} className="mr-2" />تسجيل صرف مرتب
+        </Button>
       )}
 
       <Button variant="outline" className="w-full" onClick={onClose}>إغلاق</Button>

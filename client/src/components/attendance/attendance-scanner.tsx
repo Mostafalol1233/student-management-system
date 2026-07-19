@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Video, Check, X, Users, UserCheck, AlertCircle, Clock } from "lucide-react";
+import { Camera, Video, Check, X, Users, UserCheck, AlertCircle, Clock, Undo2 } from "lucide-react";
 import type { Session, Student, Attendance, InsertAttendance } from "@shared/schema";
 
 declare global { interface Window { Html5Qrcode: any; } }
@@ -38,6 +38,19 @@ export default function AttendanceScanner() {
       toast({ title: "✅ تم تسجيل الحضور", description: student?.name });
     },
     onError: (e: any) => toast({ title: "فشل تسجيل الحضور", description: e.message, variant: "destructive" }),
+  });
+
+  const undoMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/attendance/${id}`),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance/session", activeSession?.id] });
+      setRecentScans(prev => prev.filter(s => {
+        const rec = sessionAttendance.find(a => a.id === id);
+        return !rec || s.student.id !== rec.studentId;
+      }));
+      toast({ title: "↩️ تم إلغاء تسجيل الحضور" });
+    },
+    onError: (e: any) => toast({ title: "فشل الإلغاء", description: e.message, variant: "destructive" }),
   });
 
   useEffect(() => {
@@ -245,6 +258,52 @@ export default function AttendanceScanner() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Present students with undo */}
+          {presentStudents.length > 0 && (
+            <Card>
+              <div className="px-5 py-4 border-b flex items-center gap-2">
+                <Check size={16} className="text-emerald-600" />
+                <h3 className="font-semibold">الحاضرون</h3>
+                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">{presentStudents.length}</Badge>
+              </div>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="text-xs">الطالب</TableHead>
+                      <TableHead className="text-xs">الكود</TableHead>
+                      <TableHead className="text-xs">طريقة التسجيل</TableHead>
+                      <TableHead className="text-xs">إلغاء</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {presentStudents.map(student => {
+                      const record = sessionAttendance.find(a => a.studentId === student.id);
+                      return (
+                        <TableRow key={student.id} className="hover:bg-muted/20" data-testid={`present-row-${student.id}`}>
+                          <TableCell className="font-medium text-sm">{student.name}</TableCell>
+                          <TableCell><Badge variant="outline" className="font-mono text-xs">{student.code}</Badge></TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {record?.scanMethod === "qr" ? "📷 QR" : "⌨️ يدوي"}
+                          </TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="ghost"
+                              className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => { if (record && confirm(`إلغاء تسجيل حضور "${student.name}"؟`)) undoMutation.mutate(record.id); }}
+                              disabled={undoMutation.isPending}
+                              data-testid={`button-undo-${student.id}`}>
+                              <Undo2 size={11} className="mr-1" />إلغاء
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Status Panel */}
@@ -318,14 +377,11 @@ export default function AttendanceScanner() {
                       <TableCell><Badge variant="outline" className="font-mono text-xs">{student.code}</Badge></TableCell>
                       <TableCell className="text-sm text-muted-foreground">{student.gradeLevel} - {student.section}</TableCell>
                       <TableCell>
-                        <Button
-                          size="sm" variant="outline"
+                        <Button size="sm" variant="outline"
                           onClick={() => handleCodeScan(student.code, "manual")}
                           disabled={recordMutation.isPending}
-                          className="h-7 text-xs"
-                        >
-                          <Check size={11} className="mr-1" />
-                          تسجيل حضور
+                          className="h-7 text-xs">
+                          <Check size={11} className="mr-1" />تسجيل حضور
                         </Button>
                       </TableCell>
                     </TableRow>

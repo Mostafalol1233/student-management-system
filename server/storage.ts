@@ -79,6 +79,7 @@ export interface IStorage {
   getAttendanceByStudent(studentId: string): Promise<Attendance[]>;
   createAttendance(a: InsertAttendance): Promise<Attendance>;
   getAttendanceRecord(studentId: string, sessionId: string): Promise<Attendance | undefined>;
+  deleteAttendance(id: string): Promise<boolean>;
 
   // Grades
   getGradesByStudent(studentId: string): Promise<Grade[]>;
@@ -309,6 +310,7 @@ export class MemStorage implements IStorage {
     const a: Attendance = { ...input, id, timeRecorded: new Date() };
     this.attendance.set(id, a); return a;
   }
+  async deleteAttendance(id: string) { return this.attendance.delete(id); }
 
   // Grades
   async getGradesByStudent(studentId: string) { return Array.from(this.grades.values()).filter(g => g.studentId === studentId); }

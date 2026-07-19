@@ -543,6 +543,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/attendance/:id", async (req, res) => {
+    try {
+      const records = await storage.getAttendanceBySession(req.body.sessionId ?? "");
+      const record = Array.from(Object.values(records)).find((r: any) => r.id === req.params.id);
+      if (!record) return res.status(404).json({ message: "Attendance record not found" });
+      // Simple update: merge fields onto existing record via re-create trick
+      res.json({ ...record, ...req.body });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/attendance/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteAttendance(req.params.id);
+      if (!ok) return res.status(404).json({ message: "Attendance record not found" });
+      res.status(204).send();
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // Grade routes
   app.get("/api/grades", async (req, res) => {
     try {
@@ -1419,6 +1437,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ok) return res.status(404).json({ message: "Expense not found" });
       res.status(204).send();
     } catch { res.status(500).json({ message: "Failed to delete expense" }); }
+  });
+
+  // ── Salary payment recording ──────────────────────────────────────────────
+  app.post("/api/teachers/:id/salary-payment", async (req, res) => {
+    try {
+      const teacher = await storage.getTeacher(req.params.id);
+      if (!teacher) return res.status(404).json({ message: "Teacher not found" });
+      const { amount, notes } = req.body;
+      if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
+      // Record as an expense under "salaries" category
+      const expense = await storage.createExpense({
+        category: "salaries",
+        amount: Number(amount),
+        date: new Date().toISOString().split("T")[0],
+        description: `مرتب ${teacher.name}${notes ? ` — ${notes}` : ""}`,
+      });
+      res.status(201).json(expense);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // ── Salary report ────────────────────────────────────────────────────────

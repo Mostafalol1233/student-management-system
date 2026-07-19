@@ -13,14 +13,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DollarSign, Plus, Trash2, AlertCircle, CheckCircle2,
-  TrendingUp, TrendingDown, Wallet, Receipt, PieChart, Printer,
+  TrendingUp, TrendingDown, Wallet, Receipt, PieChart, Printer, Edit, Save, Search, X,
 } from "lucide-react";
 
 const FINANCE_TYPES = ["اشتراك شهري","اشتراك فصلي","اشتراك سنوي","رسوم تسجيل","كتب ومذكرات","أنشطة","أخرى"];
@@ -40,17 +42,29 @@ function categoryColor(cat: string) { return EXPENSE_CATEGORIES.find(c => c.valu
 export default function FinanceManagement() {
   const { toast } = useToast();
 
+  // Edit finance state
+  const [editingFinance, setEditingFinance] = useState<Finance | null>(null);
+  const [editFinanceForm, setEditFinanceForm] = useState<Partial<Finance>>({});
+
+  // Edit expense state
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editExpenseForm, setEditExpenseForm] = useState<Partial<Expense>>({});
+
+  // Ledger search/filter
+  const [ledgerSearch, setLedgerSearch] = useState("");
+  const [ledgerStatusFilter, setLedgerStatusFilter] = useState("all");
+  const [ledgerDateFrom, setLedgerDateFrom] = useState("");
+  const [ledgerDateTo, setLedgerDateTo] = useState("");
+
   const { data: finances = [] } = useQuery<Finance[]>({ queryKey: ["/api/finances"] });
   const { data: students = [] } = useQuery<Student[]>({ queryKey: ["/api/students"] });
   const { data: expenses = [] } = useQuery<Expense[]>({ queryKey: ["/api/expenses"] });
 
-  // ── Finance form ────────────────────────────────────────────────────────
   const financeForm = useForm<InsertFinance>({
     resolver: zodResolver(insertFinanceSchema),
     defaultValues: { studentId: "", type: "", amount: 0, paid: 0, dueDate: new Date().toISOString().split("T")[0], status: "pending", notes: "" },
   });
 
-  // ── Expense form ────────────────────────────────────────────────────────
   const expenseForm = useForm<InsertExpense>({
     resolver: zodResolver(insertExpenseSchema),
     defaultValues: { category: "", amount: 0, date: new Date().toISOString().split("T")[0], description: "" },
@@ -61,7 +75,7 @@ export default function FinanceManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/finances"] });
       financeForm.reset({ studentId:"",type:"",amount:0,paid:0,dueDate:new Date().toISOString().split("T")[0],status:"pending",notes:"" });
-      toast({ title: "تم تسجيل الدفعة" });
+      toast({ title: "✅ تم تسجيل الدفعة" });
     },
     onError: (e: any) => toast({ title: "فشل", description: e.message, variant: "destructive" }),
   });
@@ -69,12 +83,17 @@ export default function FinanceManagement() {
   const updateFinanceMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Finance> }) =>
       (await apiRequest("PUT", `/api/finances/${id}`, updates)).json(),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/finances"] }); toast({ title: "تم التحديث" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/finances"] });
+      setEditingFinance(null);
+      toast({ title: "✅ تم التحديث" });
+    },
+    onError: (e: any) => toast({ title: "فشل التحديث", description: e.message, variant: "destructive" }),
   });
 
   const deleteFinanceMutation = useMutation({
     mutationFn: async (id: string) => apiRequest("DELETE", `/api/finances/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/finances"] }); toast({ title: "تم الحذف" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/finances"] }); toast({ title: "✅ تم الحذف" }); },
   });
 
   const createExpenseMutation = useMutation({
@@ -82,96 +101,202 @@ export default function FinanceManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       expenseForm.reset({ category:"", amount:0, date:new Date().toISOString().split("T")[0], description:"" });
-      toast({ title: "تم تسجيل المصروف" });
+      toast({ title: "✅ تم تسجيل المصروف" });
     },
     onError: (e: any) => toast({ title: "فشل", description: e.message, variant: "destructive" }),
   });
 
-  const deleteExpenseMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest("DELETE", `/api/expenses/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/expenses"] }); toast({ title: "تم الحذف" }); },
+  const updateExpenseMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Expense> }) =>
+      (await apiRequest("PUT", `/api/expenses/${id}`, updates)).json(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      setEditingExpense(null);
+      toast({ title: "✅ تم تحديث المصروف" });
+    },
+    onError: (e: any) => toast({ title: "فشل التحديث", description: e.message, variant: "destructive" }),
   });
 
-  // ── Calculations ─────────────────────────────────────────────────────────
+  const deleteExpenseMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest("DELETE", `/api/expenses/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/expenses"] }); toast({ title: "✅ تم الحذف" }); },
+  });
+
+  // Calculations
   const totalIncome  = finances.reduce((s, f) => s + (f.paid ?? 0), 0);
   const totalDue     = finances.reduce((s, f) => s + f.amount, 0);
   const totalPending = totalDue - totalIncome;
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
   const netProfit    = totalIncome - totalExpenses;
-  const paidCount    = finances.filter(f => f.status === "paid").length;
   const overdueFinances = finances.filter(f => f.status !== "paid" && new Date(f.dueDate) < new Date());
 
-  // Expense by category
   const expenseByCategory = EXPENSE_CATEGORIES.map(cat => ({
     ...cat,
     total: expenses.filter(e => e.category === cat.value).reduce((s, e) => s + e.amount, 0),
   })).filter(c => c.total > 0);
 
+  // Filtered ledger
+  const filteredFinances = finances.filter(f => {
+    const student = students.find(s => s.id === f.studentId);
+    const matchSearch = !ledgerSearch || student?.name.toLowerCase().includes(ledgerSearch.toLowerCase()) || f.type.includes(ledgerSearch);
+    const matchStatus = ledgerStatusFilter === "all" || f.status === ledgerStatusFilter || (ledgerStatusFilter === "overdue" && f.status !== "paid" && new Date(f.dueDate) < new Date());
+    const matchFrom = !ledgerDateFrom || f.dueDate >= ledgerDateFrom;
+    const matchTo = !ledgerDateTo || f.dueDate <= ledgerDateTo;
+    return matchSearch && matchStatus && matchFrom && matchTo;
+  });
+
+  const openEditFinance = (f: Finance) => { setEditingFinance(f); setEditFinanceForm({ ...f }); };
+  const openEditExpense = (e: Expense) => { setEditingExpense(e); setEditExpenseForm({ ...e }); };
+
   const printFinanceReport = () => {
     const win = window.open("", "_blank");
     if (!win) return;
-    const rows = finances.map(f => {
+    const rows = filteredFinances.map(f => {
       const student = students.find(s => s.id === f.studentId);
       const pct = f.amount > 0 ? Math.round(((f.paid ?? 0) / f.amount) * 100) : 0;
       const overdue = f.status !== "paid" && new Date(f.dueDate) < new Date();
       return `<tr>
-        <td>${student?.name || "—"}</td>
-        <td>${f.type}</td>
+        <td>${student?.name || "—"}</td><td>${f.type}</td>
         <td class="num">${f.amount.toLocaleString()} ج</td>
         <td class="num">${(f.paid ?? 0).toLocaleString()} ج</td>
         <td class="num">${(f.amount - (f.paid ?? 0)).toLocaleString()} ج</td>
         <td>${f.dueDate}</td>
         <td class="${f.status === "paid" ? "paid" : overdue ? "overdue" : "pending"}">
           ${f.status === "paid" ? "مدفوع" : overdue ? "متأخر" : "معلق"}
-        </td>
-      </tr>`;
+        </td></tr>`;
     }).join("");
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>تقرير مالي</title>
-      <style>
-        body{font-family:Arial,sans-serif;direction:rtl;padding:24px;color:#111}
-        h1{font-size:20px;margin-bottom:4px}
-        .meta{font-size:12px;color:#666;margin-bottom:16px}
-        table{width:100%;border-collapse:collapse;font-size:13px}
-        th{background:#f3f4f6;padding:8px;text-align:right;border:1px solid #ddd}
-        td{padding:7px 8px;border:1px solid #ddd;text-align:right}
-        .num{text-align:left;font-family:monospace}
-        .paid{color:#16a34a;font-weight:600}
-        .overdue{color:#dc2626;font-weight:600}
-        .pending{color:#d97706;font-weight:600}
-        .summary{margin-top:16px;font-size:13px;display:flex;gap:24px}
-        .summary span{font-weight:700}
-        @media print{body{padding:0}}
-      </style></head><body>
+      <style>body{font-family:Arial,sans-serif;direction:rtl;padding:24px;color:#111}
+      h1{font-size:20px;margin-bottom:4px}.meta{font-size:12px;color:#666;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse;font-size:13px}
+      th{background:#f3f4f6;padding:8px;text-align:right;border:1px solid #ddd}
+      td{padding:7px 8px;border:1px solid #ddd;text-align:right}
+      .num{text-align:left;font-family:monospace}
+      .paid{color:#16a34a;font-weight:600}.overdue{color:#dc2626;font-weight:600}.pending{color:#d97706;font-weight:600}
+      .summary{margin-top:16px;font-size:13px;display:flex;gap:24px}.summary span{font-weight:700}
+      @media print{body{padding:0}}</style></head><body>
       <h1>التقرير المالي</h1>
-      <div class="meta">تاريخ الطباعة: ${new Date().toLocaleDateString("ar-EG")} · إجمالي السجلات: ${finances.length}</div>
-      <table>
-        <thead><tr><th>الطالب</th><th>النوع</th><th>المبلغ</th><th>المدفوع</th><th>المتبقي</th><th>الاستحقاق</th><th>الحالة</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+      <div class="meta">تاريخ الطباعة: ${new Date().toLocaleDateString("ar-EG")} · السجلات: ${filteredFinances.length}</div>
+      <table><thead><tr><th>الطالب</th><th>النوع</th><th>المبلغ</th><th>المدفوع</th><th>المتبقي</th><th>الاستحقاق</th><th>الحالة</th></tr></thead>
+      <tbody>${rows}</tbody></table>
       <div class="summary">
         <div>الإجمالي: <span>${totalIncome.toLocaleString()} ج</span></div>
         <div>المتأخرات: <span>${totalPending.toLocaleString()} ج</span></div>
         <div>صافي الربح: <span>${netProfit.toLocaleString()} ج</span></div>
-      </div>
-      </body></html>`);
-    win.document.close();
-    win.print();
+      </div></body></html>`);
+    win.document.close(); win.print();
   };
 
   const exportCSV = () => {
     const csv = "الطالب,النوع,المبلغ,المدفوع,المتبقي,تاريخ الاستحقاق,الحالة\n" +
-      finances.map(f => {
+      filteredFinances.map(f => {
         const s = students.find(st => st.id === f.studentId);
         return `"${s?.name || ""}","${f.type}",${f.amount},${f.paid ?? 0},${f.amount - (f.paid ?? 0)},"${f.dueDate}","${f.status === "paid" ? "مدفوع" : "معلق"}"`;
       }).join("\n");
     const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: "finance-report.csv" });
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    toast({ title: "تم تصدير التقرير" });
+    toast({ title: "✅ تم تصدير التقرير" });
   };
 
   return (
     <div className="space-y-6">
+      {/* Edit Finance Dialog */}
+      <Dialog open={!!editingFinance} onOpenChange={o => { if (!o) setEditingFinance(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>تعديل سجل الدفعة</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">الطالب</Label>
+              <Select value={editFinanceForm.studentId || ""} onValueChange={v => setEditFinanceForm(p => ({ ...p, studentId: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="اختر طالباً" /></SelectTrigger>
+                <SelectContent>{students.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">نوع الرسوم</Label>
+              <Select value={editFinanceForm.type || ""} onValueChange={v => setEditFinanceForm(p => ({ ...p, type: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="اختر النوع" /></SelectTrigger>
+                <SelectContent>{FINANCE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">المبلغ الكلي</Label>
+                <Input type="number" min="0" className="h-8 text-sm" value={editFinanceForm.amount ?? 0}
+                  onChange={e => setEditFinanceForm(p => ({ ...p, amount: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">المدفوع</Label>
+                <Input type="number" min="0" className="h-8 text-sm" value={editFinanceForm.paid ?? 0}
+                  onChange={e => {
+                    const paid = parseFloat(e.target.value) || 0;
+                    const status = paid >= (editFinanceForm.amount ?? 0) ? "paid" : "pending";
+                    setEditFinanceForm(p => ({ ...p, paid, status }));
+                  }} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">تاريخ الاستحقاق</Label>
+              <Input type="date" className="h-8 text-sm" value={editFinanceForm.dueDate || ""}
+                onChange={e => setEditFinanceForm(p => ({ ...p, dueDate: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">الحالة</Label>
+              <Select value={editFinanceForm.status || "pending"} onValueChange={v => setEditFinanceForm(p => ({ ...p, status: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">مدفوع</SelectItem>
+                  <SelectItem value="pending">معلق</SelectItem>
+                  <SelectItem value="overdue">متأخر</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full" disabled={updateFinanceMutation.isPending}
+              onClick={() => editingFinance && updateFinanceMutation.mutate({ id: editingFinance.id, updates: editFinanceForm })}>
+              <Save size={14} className="mr-2" />
+              {updateFinanceMutation.isPending ? "جاري الحفظ..." : "حفظ التغييرات"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Expense Dialog */}
+      <Dialog open={!!editingExpense} onOpenChange={o => { if (!o) setEditingExpense(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>تعديل المصروف</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">الفئة</Label>
+              <Select value={editExpenseForm.category || ""} onValueChange={v => setEditExpenseForm(p => ({ ...p, category: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">المبلغ</Label>
+              <Input type="number" min="0" className="h-8 text-sm" value={editExpenseForm.amount ?? 0}
+                onChange={e => setEditExpenseForm(p => ({ ...p, amount: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">التاريخ</Label>
+              <Input type="date" className="h-8 text-sm" value={editExpenseForm.date || ""}
+                onChange={e => setEditExpenseForm(p => ({ ...p, date: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">البيان</Label>
+              <Input className="h-8 text-sm" placeholder="تفاصيل..." value={editExpenseForm.description || ""}
+                onChange={e => setEditExpenseForm(p => ({ ...p, description: e.target.value }))} />
+            </div>
+            <Button className="w-full" disabled={updateExpenseMutation.isPending}
+              onClick={() => editingExpense && updateExpenseMutation.mutate({ id: editingExpense.id, updates: editExpenseForm })}>
+              <Save size={14} className="mr-2" />
+              {updateExpenseMutation.isPending ? "جاري الحفظ..." : "حفظ التغييرات"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -208,7 +333,49 @@ export default function FinanceManagement() {
 
         {/* ── Ledger ── */}
         <TabsContent value="ledger" className="mt-4 space-y-4">
-          {/* Net profit summary bar */}
+          {/* Search + filter bar */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="flex-1 min-w-[180px] space-y-1">
+                  <Label className="text-xs text-muted-foreground">بحث بالاسم أو النوع</Label>
+                  <div className="relative">
+                    <Search size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input className="h-8 text-sm pr-8" placeholder="ابحث..." value={ledgerSearch}
+                      onChange={e => setLedgerSearch(e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-1 w-36">
+                  <Label className="text-xs text-muted-foreground">الحالة</Label>
+                  <Select value={ledgerStatusFilter} onValueChange={setLedgerStatusFilter}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">الكل</SelectItem>
+                      <SelectItem value="paid">مدفوع</SelectItem>
+                      <SelectItem value="pending">معلق</SelectItem>
+                      <SelectItem value="overdue">متأخر</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">من تاريخ</Label>
+                  <Input type="date" className="h-8 text-sm w-36" value={ledgerDateFrom} onChange={e => setLedgerDateFrom(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">إلى تاريخ</Label>
+                  <Input type="date" className="h-8 text-sm w-36" value={ledgerDateTo} onChange={e => setLedgerDateTo(e.target.value)} />
+                </div>
+                {(ledgerSearch || ledgerStatusFilter !== "all" || ledgerDateFrom || ledgerDateTo) && (
+                  <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground"
+                    onClick={() => { setLedgerSearch(""); setLedgerStatusFilter("all"); setLedgerDateFrom(""); setLedgerDateTo(""); }}>
+                    <X size={12} className="mr-1" />مسح
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Net profit summary */}
           {(totalIncome > 0 || totalExpenses > 0) && (
             <Card>
               <CardContent className="p-5">
@@ -222,20 +389,18 @@ export default function FinanceManagement() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs w-20 text-muted-foreground">الإيرادات</span>
-                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: totalIncome + totalExpenses > 0 ? `${(totalIncome / (totalIncome + totalExpenses)) * 100}%` : "0%" }} />
+                  {[
+                    { label: "الإيرادات", value: totalIncome, color: "bg-emerald-500" },
+                    { label: "المصروفات", value: totalExpenses, color: "bg-red-500" },
+                  ].map(r => (
+                    <div key={r.label} className="flex items-center gap-3">
+                      <span className="text-xs w-20 text-muted-foreground">{r.label}</span>
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div className={`h-full ${r.color} rounded-full`} style={{ width: totalIncome + totalExpenses > 0 ? `${(r.value / (totalIncome + totalExpenses)) * 100}%` : "0%" }} />
+                      </div>
+                      <span className="text-xs font-mono w-20 text-left">{r.value.toLocaleString()} ج</span>
                     </div>
-                    <span className="text-xs font-mono w-20 text-left">{totalIncome.toLocaleString()} ج</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs w-20 text-muted-foreground">المصروفات</span>
-                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-red-500 rounded-full" style={{ width: totalIncome + totalExpenses > 0 ? `${(totalExpenses / (totalIncome + totalExpenses)) * 100}%` : "0%" }} />
-                    </div>
-                    <span className="text-xs font-mono w-20 text-left">{totalExpenses.toLocaleString()} ج</span>
-                  </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -246,6 +411,9 @@ export default function FinanceManagement() {
               <div className="flex items-center gap-2">
                 <Receipt size={14} className="text-muted-foreground" />
                 <h3 className="font-semibold text-sm">جميع الدفعات</h3>
+                {filteredFinances.length !== finances.length && (
+                  <Badge variant="secondary" className="text-xs">{filteredFinances.length} / {finances.length}</Badge>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={exportCSV} data-testid="button-export-finance">تصدير CSV</Button>
@@ -255,10 +423,10 @@ export default function FinanceManagement() {
               </div>
             </div>
             <CardContent className="p-0">
-              {finances.length === 0 ? (
+              {filteredFinances.length === 0 ? (
                 <div className="p-10 text-center text-muted-foreground">
                   <DollarSign size={28} className="mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">لا توجد سجلات مالية بعد</p>
+                  <p className="text-sm">{ledgerSearch || ledgerStatusFilter !== "all" || ledgerDateFrom || ledgerDateTo ? "لا توجد نتائج مطابقة" : "لا توجد سجلات مالية بعد"}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -272,11 +440,11 @@ export default function FinanceManagement() {
                         <TableHead className="text-xs">التقدم</TableHead>
                         <TableHead className="text-xs">الاستحقاق</TableHead>
                         <TableHead className="text-xs">الحالة</TableHead>
-                        <TableHead className="text-xs text-left">إجراء</TableHead>
+                        <TableHead className="text-xs">إجراء</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {finances.map(f => {
+                      {filteredFinances.map(f => {
                         const student = students.find(s => s.id === f.studentId);
                         const pct = f.amount > 0 ? Math.round(((f.paid ?? 0) / f.amount) * 100) : 0;
                         const overdue = f.status !== "paid" && new Date(f.dueDate) < new Date();
@@ -299,14 +467,19 @@ export default function FinanceManagement() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              <div className="flex gap-1">
+                              <div className="flex gap-0.5">
                                 {f.status !== "paid" && (
-                                  <Button size="sm" variant="outline" className="h-6 text-[10px] border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                  <Button size="sm" variant="outline" className="h-6 text-[10px] border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-1.5"
                                     onClick={() => updateFinanceMutation.mutate({ id: f.id, updates: { status: "paid", paid: f.amount } })}
                                     data-testid={`button-mark-paid-${f.id}`}>مدفوع</Button>
                                 )}
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-amber-600 hover:text-amber-700"
+                                  onClick={() => openEditFinance(f)}
+                                  data-testid={`button-edit-finance-${f.id}`} title="تعديل">
+                                  <Edit size={11} />
+                                </Button>
                                 <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                                  onClick={() => { if (confirm("حذف السجل؟")) deleteFinanceMutation.mutate(f.id); }}
+                                  onClick={() => { if (confirm("حذف هذا السجل المالي؟")) deleteFinanceMutation.mutate(f.id); }}
                                   data-testid={`button-delete-finance-${f.id}`}><Trash2 size={11} /></Button>
                               </div>
                             </TableCell>
@@ -374,7 +547,6 @@ export default function FinanceManagement() {
         {/* ── Expenses ── */}
         <TabsContent value="expenses" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Category breakdown */}
             {expenseByCategory.length > 0 && (
               <div className="space-y-3">
                 <div className="font-semibold text-sm">التوزيع حسب الفئة</div>
@@ -389,8 +561,7 @@ export default function FinanceManagement() {
                   </div>
                 ))}
                 <div className="pt-2 border-t flex justify-between text-sm font-semibold">
-                  <span>الإجمالي</span>
-                  <span>{totalExpenses.toLocaleString()} ج</span>
+                  <span>الإجمالي</span><span>{totalExpenses.toLocaleString()} ج</span>
                 </div>
               </div>
             )}
@@ -409,9 +580,7 @@ export default function FinanceManagement() {
                         <FormItem><FormLabel>الفئة *</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              {EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                            </SelectContent>
+                            <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
                           </Select><FormMessage /></FormItem>
                       )} />
                       <FormField control={expenseForm.control} name="amount" render={({ field }) => (
@@ -456,7 +625,7 @@ export default function FinanceManagement() {
                           <TableHead className="text-xs">البيان</TableHead>
                           <TableHead className="text-xs">التاريخ</TableHead>
                           <TableHead className="text-xs">المبلغ</TableHead>
-                          <TableHead className="text-xs text-left">حذف</TableHead>
+                          <TableHead className="text-xs">إجراء</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -472,10 +641,16 @@ export default function FinanceManagement() {
                             <TableCell className="text-xs text-muted-foreground font-mono">{e.date}</TableCell>
                             <TableCell className="font-mono text-sm font-semibold text-red-600">{e.amount.toLocaleString()} ج</TableCell>
                             <TableCell>
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive"
-                                onClick={() => { if (confirm("حذف المصروف؟")) deleteExpenseMutation.mutate(e.id); }}>
-                                <Trash2 size={11} />
-                              </Button>
+                              <div className="flex gap-0.5">
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-amber-600 hover:text-amber-700"
+                                  onClick={() => openEditExpense(e)} title="تعديل">
+                                  <Edit size={11} />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive"
+                                  onClick={() => { if (confirm("حذف هذا المصروف؟")) deleteExpenseMutation.mutate(e.id); }}>
+                                  <Trash2 size={11} />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -521,10 +696,14 @@ export default function FinanceManagement() {
                           <div className="font-bold text-red-600 text-sm">{remaining.toLocaleString()} ج</div>
                           <div className="text-[10px] text-muted-foreground">متبقي</div>
                         </div>
-                        <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-200 text-emerald-700"
-                          onClick={() => updateFinanceMutation.mutate({ id: f.id, updates: { status: "paid", paid: f.amount } })}>
-                          تسوية
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-200 text-emerald-700"
+                            onClick={() => updateFinanceMutation.mutate({ id: f.id, updates: { status: "paid", paid: f.amount } })}>
+                            تسوية
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-amber-600"
+                            onClick={() => openEditFinance(f)} title="تعديل"><Edit size={12} /></Button>
+                        </div>
                       </div>
                     );
                   })}
